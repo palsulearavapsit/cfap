@@ -43,40 +43,43 @@ def create_app(config_class=Config):
 
     # Seed Database on startup
     with app.app_context():
-        # Automatically ensure MySQL database exists before creating tables
-        db_uri = app.config.get('SQLALCHEMY_DATABASE_URI')
-        if db_uri and db_uri.startswith('mysql'):
-            try:
-                server_uri, db_name = db_uri.rsplit('/', 1)
-                if '?' in db_name:
-                    db_name = db_name.split('?', 1)[0]
-                
-                from sqlalchemy import create_engine, text
-                temp_engine = create_engine(server_uri)
-                with temp_engine.connect() as conn:
-                    # Automatically commit the transaction for database creation
-                    conn.execution_options(isolation_level="AUTOCOMMIT")
-                    conn.execute(text(f"CREATE DATABASE IF NOT EXISTS `{db_name}`"))
-                temp_engine.dispose()
-                print(f"Database '{db_name}' ensured successfully.")
-            except Exception as e:
-                print(f"[WARNING] Could not automatically create MySQL database: {e}")
+        try:
+            # Automatically ensure MySQL database exists before creating tables
+            db_uri = app.config.get('SQLALCHEMY_DATABASE_URI')
+            if db_uri and db_uri.startswith('mysql'):
+                try:
+                    server_uri, db_name = db_uri.rsplit('/', 1)
+                    if '?' in db_name:
+                        db_name = db_name.split('?', 1)[0]
+                    
+                    from sqlalchemy import create_engine, text
+                    temp_engine = create_engine(server_uri)
+                    with temp_engine.connect() as conn:
+                        # Automatically commit the transaction for database creation
+                        conn.execution_options(isolation_level="AUTOCOMMIT")
+                        conn.execute(text(f"CREATE DATABASE IF NOT EXISTS `{db_name}`"))
+                    temp_engine.dispose()
+                    print(f"Database '{db_name}' ensured successfully.")
+                except Exception as e:
+                    print(f"[WARNING] Could not automatically create MySQL database: {e}")
 
-        db.create_all()
-        # Seed default challenges if empty
-        if Challenge.query.count() == 0:
-            challenges = [
-                Challenge(id=1, title="No Plastic Day", description="Avoid single-use plastics for an entire day.", difficulty="Beginner", points=50),
-                Challenge(id=2, title="Meat-Free Monday", description="Eat only plant-based meals today.", difficulty="Intermediate", points=100),
-                Challenge(id=3, title="Public Transport Week", description="Commute using only public transit or active transit (walk/bike) for 5 days.", difficulty="Advanced", points=250),
-                Challenge(id=4, title="Zero Waste Weekend", description="Generate absolutely zero landfill waste from Friday night to Monday morning.", difficulty="Expert", points=500)
-            ]
-            try:
-                db.session.bulk_save_objects(challenges)
-                db.session.commit()
-                print("Seeded default challenges successfully.")
-            except Exception as e:
-                db.session.rollback()
-                print(f"Error seeding challenges: {e}")
+            db.create_all()
+            # Seed default challenges if empty
+            if Challenge.query.count() == 0:
+                challenges = [
+                    Challenge(id=1, title="No Plastic Day", description="Avoid single-use plastics for an entire day.", difficulty="Beginner", points=50),
+                    Challenge(id=2, title="Meat-Free Monday", description="Eat only plant-based meals today.", difficulty="Intermediate", points=100),
+                    Challenge(id=3, title="Public Transport Week", description="Commute using only public transit or active transit (walk/bike) for 5 days.", difficulty="Advanced", points=250),
+                    Challenge(id=4, title="Zero Waste Weekend", description="Generate absolutely zero landfill waste from Friday night to Monday morning.", difficulty="Expert", points=500)
+                ]
+                try:
+                    db.session.bulk_save_objects(challenges)
+                    db.session.commit()
+                    print("Seeded default challenges successfully.")
+                except Exception as e:
+                    db.session.rollback()
+                    print(f"Error seeding challenges: {e}")
+        except Exception as db_init_err:
+            print(f"[ERROR] Database creation/seeding failed at startup: {db_init_err}")
 
     return app
