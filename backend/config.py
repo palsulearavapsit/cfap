@@ -16,8 +16,12 @@ class Config:
     
     # Ensure DATABASE_URL is properly formatted for SQLAlchemy
     # Supabase / Heroku often supply postgres:// but SQLAlchemy requires postgresql://
-    if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    if DATABASE_URL:
+        if DATABASE_URL.startswith("postgres://"):
+            DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+        # Remove pgbouncer query parameter as it is unsupported by psycopg2
+        if "pgbouncer=true" in DATABASE_URL:
+            DATABASE_URL = DATABASE_URL.replace("?pgbouncer=true", "").replace("&pgbouncer=true", "")
     SQLALCHEMY_DATABASE_URI = DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
