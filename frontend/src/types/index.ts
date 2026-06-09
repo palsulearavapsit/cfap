@@ -1,12 +1,12 @@
 export interface User {
-  id: number;
+  id: string;
   email: string;
   created_at: string;
 }
 
 export interface CarbonEntry {
   id: number;
-  user_id: number;
+  user_id: string;
   transportation_car: number;
   transportation_bike: number;
   transportation_public: number;
@@ -25,7 +25,7 @@ export interface CarbonEntry {
 
 export interface Recommendation {
   id: number;
-  user_id: number;
+  user_id: string;
   title: string;
   description: string;
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert';
@@ -45,7 +45,7 @@ export interface Challenge {
 
 export interface ChallengeProgress {
   id: number;
-  user_id: number;
+  user_id: string;
   challenge_id: number;
   start_date: string;
   end_date: string;
