@@ -15,7 +15,9 @@ class Config:
         DATABASE_URL = "sqlite:///ecotrack.db"
     
     # Ensure DATABASE_URL is properly formatted for SQLAlchemy
-    # (e.g. replacing postgres:// with postgresql:// if any, but we focus on mysql)
+    # Supabase / Heroku often supply postgres:// but SQLAlchemy requires postgresql://
+    if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
     SQLALCHEMY_DATABASE_URI = DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
