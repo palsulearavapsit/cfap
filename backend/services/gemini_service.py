@@ -154,8 +154,8 @@ def generate_recommendations_gemini(data: dict) -> list:
 
     try:
         genai.configure(api_key=api_key)
-        # Using the standard lightweight model for quick inference
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        # Using the standard modern flash model
+        model = genai.GenerativeModel("gemini-2.5-flash")
         
         prompt = f"""
         You are an expert environmental consultant and sustainability advisor.
