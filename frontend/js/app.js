@@ -6,8 +6,12 @@ document.addEventListener('DOMContentLoaded', () => {
     charts: {
       history: null,
       pie: null,
+      comparison: null,
     },
     calculatorStep: 1,
+    token: localStorage.getItem('auth_token') || null,
+    isRegistering: false,
+    historyFilter: '6m',
   };
 
   // --- API HELPER ---
@@ -18,8 +22,18 @@ document.addEventListener('DOMContentLoaded', () => {
         ...options.headers,
       };
 
+      if (state.token) {
+        headers['Authorization'] = `Bearer ${state.token}`;
+      }
+
       try {
         const response = await fetch(endpoint, { ...options, headers });
+        
+        if (response.status === 401 && state.token) {
+          logout();
+          throw new Error('Session expired. Please log in again.');
+        }
+
         const data = await response.json();
         
         if (!response.ok) {
@@ -58,8 +72,12 @@ document.addEventListener('DOMContentLoaded', () => {
     notificationText: document.getElementById('notification-text'),
     closeNotification: document.getElementById('close-notification'),
     
+    // Alert Banner
+    bannerApiUnconfigured: document.getElementById('banner-api-unconfigured'),
+
     // Views
     views: {
+      auth: document.getElementById('view-auth'),
       dashboard: document.getElementById('view-dashboard'),
       calculator: document.getElementById('view-calculator'),
       challenges: document.getElementById('view-challenges'),
@@ -69,6 +87,17 @@ document.addEventListener('DOMContentLoaded', () => {
     navDashboard: document.getElementById('nav-dashboard'),
     navCalculator: document.getElementById('nav-calculator'),
     navChallenges: document.getElementById('nav-challenges'),
+
+    // Auth Form
+    formAuth: document.getElementById('form-auth'),
+    inpAuthEmail: document.getElementById('inp-auth-email'),
+    inpAuthPassword: document.getElementById('inp-auth-password'),
+    btnAuthSubmit: document.getElementById('btn-auth-submit'),
+    authTitle: document.getElementById('auth-title'),
+    authSubtitle: document.getElementById('auth-subtitle'),
+    authSwitchText: document.getElementById('auth-switch-text'),
+    linkAuthSwitch: document.getElementById('link-auth-switch'),
+    btnLogout: document.getElementById('btn-logout'),
 
     // Forms
     formCalculator: document.getElementById('form-calculator'),
@@ -102,8 +131,27 @@ document.addEventListener('DOMContentLoaded', () => {
     activeChallengesCount: document.getElementById('active-challenges-count'),
     activeChallengesList: document.getElementById('active-challenges-list'),
     availableChallengesList: document.getElementById('available-challenges-list'),
+    completedChallengesWrap: document.getElementById('completed-challenges-wrap'),
+    completedChallengesList: document.getElementById('completed-challenges-list'),
     completionCelebration: document.getElementById('completion-celebration'),
     celebPointsEarned: document.getElementById('celeb-points-earned'),
+
+    // Modals
+    modalChallengeDetails: document.getElementById('modal-challenge-details'),
+    modalDetailsTitle: document.getElementById('modal-details-title'),
+    modalDetailsDifficulty: document.getElementById('modal-details-difficulty'),
+    modalDetailsPoints: document.getElementById('modal-details-points'),
+    modalDetailsDescription: document.getElementById('modal-details-description'),
+    modalDetailsRulesList: document.getElementById('modal-details-rules-list'),
+    btnModalDetailsAction: document.getElementById('btn-modal-details-action'),
+
+    modalChallengeProof: document.getElementById('modal-challenge-proof'),
+    formChallengeProof: document.getElementById('form-challenge-proof'),
+    inpProofText: document.getElementById('inp-proof-text'),
+
+    // Theme toggle & Filter buttons
+    btnThemeToggle: document.getElementById('btn-theme-toggle'),
+    filterButtons: document.querySelectorAll('.filter-btn'),
   };
 
   // --- NOTIFICATION BANNER UTILITY ---
@@ -132,12 +180,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- ROUTER VIEW TOGGLER ---
   function navigateTo(viewName) {
+    if (!state.token) {
+      viewName = 'auth';
+    }
+
     // Hide all views
-    Object.values(elements.views).forEach(view => view.classList.add('hidden'));
+    Object.values(elements.views).forEach(view => {
+      if (view) view.classList.add('hidden');
+    });
     
     // Show selected view
     if (elements.views[viewName]) {
       elements.views[viewName].classList.remove('hidden');
+    }
+
+    // Toggle navigation headers based on auth state
+    if (viewName === 'auth') {
+      elements.header.classList.add('hidden');
+      elements.btnLogout.classList.add('hidden');
+    } else {
+      elements.header.classList.remove('hidden');
+      elements.btnLogout.classList.remove('hidden');
     }
 
     // Toggle navigation button actives
@@ -180,7 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const [summary, history, recommendations] = await Promise.all([
         API.get('/api/analytics/summary'),
-        API.get('/api/analytics/history'),
+        API.get(`/api/analytics/history?filter=${state.historyFilter}`),
         API.get('/api/recommendations/'),
       ]);
 
@@ -208,15 +271,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
       elements.valScore.textContent = summary.sustainability_score;
       elements.valScoreBar.style.width = `${summary.sustainability_score}%`;
+      elements.valScoreBar.setAttribute('aria-valuenow', summary.sustainability_score);
       elements.valAnnual.textContent = Math.round(summary.current_month_emissions * 12).toLocaleString();
 
       // 2. Render Line Chart
       renderHistoryChart(history.trends);
 
       // 3. Render Pie Chart
-      renderPieChart(summary.category_breakdown_percentages);
+      renderPieChart(summary.category_breakdown_percentages, summary.category_breakdown_values);
 
-      // 4. Render Recommendations
+      // 4. Render Comparison Bar Chart
+      renderComparisonChart(summary.current_month_emissions, summary.national_average, summary.global_average);
+
+      // 5. Render Recommendations
       renderRecommendations(recommendations);
 
     } catch (err) {
@@ -279,7 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function renderPieChart(breakdown) {
+  function renderPieChart(percentages, values) {
     const ctx = document.getElementById('chart-pie').getContext('2d');
 
     // Destroy previous instance
@@ -287,7 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state.charts.pie.destroy();
     }
 
-    if (!breakdown) return;
+    if (!percentages) return;
 
     state.charts.pie = new Chart(ctx, {
       type: 'doughnut',
@@ -295,11 +362,11 @@ document.addEventListener('DOMContentLoaded', () => {
         labels: ['Transportation', 'Energy', 'Food', 'Shopping', 'Waste'],
         datasets: [{
           data: [
-            breakdown.transportation,
-            breakdown.energy,
-            breakdown.food,
-            breakdown.shopping,
-            breakdown.waste
+            percentages.transportation,
+            percentages.energy,
+            percentages.food,
+            percentages.shopping,
+            percentages.waste
           ],
           backgroundColor: ['#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ef4444'],
           borderWidth: 1,
@@ -320,8 +387,59 @@ document.addEventListener('DOMContentLoaded', () => {
           },
           tooltip: {
             callbacks: {
-              label: (context) => ` ${context.label}: ${context.raw}%`
+              label: (context) => {
+                const label = context.label || '';
+                const pct = percentages[label.toLowerCase()] || 0;
+                const value = values ? (values[label.toLowerCase()] || 0) : 0;
+                return ` ${label}: ${value.toFixed(1)} kg (${pct.toFixed(1)}%)`;
+              }
             }
+          }
+        }
+      }
+    });
+  }
+
+  function renderComparisonChart(userVal, nationalVal, globalVal) {
+    const ctx = document.getElementById('chart-comparison').getContext('2d');
+
+    if (state.charts.comparison) {
+      state.charts.comparison.destroy();
+    }
+
+    state.charts.comparison = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['Your Footprint', 'National Average', 'Global Target'],
+        datasets: [{
+          label: 'Emissions (kg CO₂)',
+          data: [userVal, nationalVal, globalVal],
+          backgroundColor: ['#10b981', '#ef4444', '#3b82f6'],
+          borderWidth: 1,
+          borderColor: '#1e293b'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#0f172a',
+            titleColor: '#fff',
+            bodyColor: '#e2e8f0',
+            borderColor: '#334155',
+            borderWidth: 1
+          }
+        },
+        scales: {
+          y: {
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: { color: '#94a3b8' }
+          },
+          x: {
+            grid: { display: false },
+            ticks: { color: '#94a3b8' }
           }
         }
       }
@@ -499,7 +617,127 @@ document.addEventListener('DOMContentLoaded', () => {
     navigateTo('dashboard');
   });
 
-  // --- CHALLENGES SERVICES ---
+  // --- CHALLENGES SERVICES & MODALS ---
+  let activeProofProgressId = null;
+  let activeProofPoints = 0;
+
+  function closeModals() {
+    elements.modalChallengeDetails.classList.add('hidden');
+    elements.modalChallengeProof.classList.add('hidden');
+    elements.formChallengeProof.reset();
+  }
+
+  document.querySelectorAll('.modal-close-btn').forEach(btn => {
+    btn.addEventListener('click', closeModals);
+  });
+  
+  const closeProofBtn = document.querySelector('.btn-close-proof');
+  if (closeProofBtn) {
+    closeProofBtn.addEventListener('click', closeModals);
+  }
+
+  function openChallengeDetailsModal(challenge, status) {
+    elements.modalDetailsTitle.textContent = challenge.title;
+    elements.modalDetailsDifficulty.textContent = challenge.difficulty;
+    elements.modalDetailsDifficulty.className = `difficulty-badge ${challenge.difficulty.toLowerCase()}`;
+    elements.modalDetailsPoints.textContent = `+${challenge.points} pts`;
+
+    // Parse description and rules from string formatting
+    const descParts = challenge.description.split('\n\nRules & Habits:\n');
+    elements.modalDetailsDescription.textContent = descParts[0] || '';
+
+    elements.modalDetailsRulesList.innerHTML = '';
+    const rulesWrap = document.getElementById('modal-details-rules-wrap');
+    if (descParts[1] && rulesWrap) {
+      const rules = descParts[1].split('\n');
+      rules.forEach(rule => {
+        const cleanRule = rule.replace(/^\d+\.\s*/, '');
+        if (cleanRule.trim()) {
+          const li = document.createElement('li');
+          li.textContent = cleanRule;
+          elements.modalDetailsRulesList.appendChild(li);
+        }
+      });
+      rulesWrap.classList.remove('hidden');
+    } else if (rulesWrap) {
+      rulesWrap.classList.add('hidden');
+    }
+
+    const btn = elements.btnModalDetailsAction;
+    if (btn) {
+      btn.disabled = false;
+      btn.className = 'btn btn-primary';
+
+      if (status.isCompleted) {
+        btn.textContent = '✓ Already Completed';
+        btn.disabled = true;
+      } else if (status.isActive) {
+        btn.textContent = 'Mark Completed';
+        btn.onclick = () => {
+          closeModals();
+          openProofModal(status.progressId, challenge.points);
+        };
+      } else {
+        btn.textContent = 'Join Challenge';
+        btn.onclick = async () => {
+          btn.disabled = true;
+          btn.textContent = 'Joining...';
+          try {
+            await API.post('/api/challenges/join', { challenge_id: challenge.id });
+            closeModals();
+            loadChallenges();
+            showNotification('Joined challenge successfully!', 'success');
+          } catch (err) {
+            showNotification('Failed to join challenge.', 'error');
+            btn.disabled = false;
+            btn.textContent = 'Join Challenge';
+          }
+        };
+      }
+    }
+
+    elements.modalChallengeDetails.classList.remove('hidden');
+  }
+
+  function openProofModal(progressId, points) {
+    activeProofProgressId = progressId;
+    activeProofPoints = points;
+    elements.modalChallengeProof.classList.remove('hidden');
+    elements.inpProofText.focus();
+  }
+
+  if (elements.formChallengeProof) {
+    elements.formChallengeProof.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const proofText = elements.inpProofText.value.trim();
+      if (!proofText) return;
+
+      const submitBtn = elements.formChallengeProof.querySelector('button[type="submit"]');
+      const originalText = submitBtn.textContent;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting...';
+
+      try {
+        await API.post(`/api/challenges/${activeProofProgressId}/complete`, { proof_text: proofText });
+        closeModals();
+        
+        // Celebration Toast trigger
+        elements.celebPointsEarned.textContent = activeProofPoints;
+        elements.completionCelebration.classList.remove('hidden');
+        setTimeout(() => {
+          elements.completionCelebration.classList.add('hidden');
+        }, 4000);
+
+        loadChallenges();
+      } catch (err) {
+        showNotification('Failed to submit completion proof.', 'error');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+      }
+    });
+  }
+
   async function loadChallenges() {
     try {
       const [challenges, activeProgress] = await Promise.all([
@@ -524,7 +762,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         activeList.forEach(prog => {
           const card = document.createElement('div');
-          card.className = 'challenge-card glass-panel';
+          card.className = 'challenge-card glass-panel cursor-pointer';
           
           const endDate = new Date(prog.end_date).toLocaleDateString();
 
@@ -535,38 +773,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span class="challenge-pts">+${prog.challenge.points} pts</span>
               </div>
               <h3>${prog.challenge.title}</h3>
-              <p>${prog.challenge.description}</p>
+              <p>${prog.challenge.description.split('\n\n')[0]}</p>
             </div>
             <div class="challenge-footer">
               <span class="challenge-date">Ends: ${endDate}</span>
               <button class="btn btn-primary btn-complete-challenge" data-progress-id="${prog.id}" data-points="${prog.challenge.points}">
-                Mark Completed
+                Complete
               </button>
             </div>
           `;
 
+          // Card click to show rules
+          card.addEventListener('click', (e) => {
+            if (e.target.closest('button')) return;
+            openChallengeDetailsModal(prog.challenge, { isActive: true, progressId: prog.id });
+          });
+
           // Mark complete click
-          card.querySelector('.btn-complete-challenge').addEventListener('click', async (e) => {
-            const btn = e.currentTarget;
-            btn.disabled = true;
-            const progressId = btn.dataset.progressId;
-            const points = parseInt(btn.dataset.points);
-            
-            try {
-              await API.post(`/api/challenges/${progressId}/complete`);
-              
-              // Points celebration
-              elements.celebPointsEarned.textContent = points;
-              elements.completionCelebration.classList.remove('hidden');
-              setTimeout(() => {
-                elements.completionCelebration.classList.add('hidden');
-              }, 4000);
-              
-              loadChallenges(); // Refresh
-            } catch (err) {
-              showNotification('Failed to complete challenge.', 'error');
-              btn.disabled = false;
-            }
+          card.querySelector('.btn-complete-challenge').addEventListener('click', (e) => {
+            e.stopPropagation();
+            openProofModal(prog.id, prog.challenge.points);
           });
 
           elements.activeChallengesList.appendChild(card);
@@ -586,18 +812,17 @@ document.addEventListener('DOMContentLoaded', () => {
         return {};
       };
 
-      // 2. Render available challenges list
+      // 2. Render available challenges list (filtered to exclude completed)
       elements.availableChallengesList.innerHTML = '';
       challenges.forEach(chal => {
-        const card = document.createElement('div');
-        card.className = 'challenge-card glass-panel';
-        
         const status = getChallengeStatus(chal.id);
+        if (status.isCompleted) return;
 
+        const card = document.createElement('div');
+        card.className = 'challenge-card glass-panel cursor-pointer';
+        
         let footerContent = '';
-        if (status.isCompleted) {
-          footerContent = '<span class="challenge-date font-bold">✓ Completed</span>';
-        } else if (status.isActive) {
+        if (status.isActive) {
           footerContent = `
             <button class="btn btn-primary btn-complete-challenge" data-progress-id="${status.progressId}" data-points="${chal.points}">
               Complete
@@ -618,7 +843,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <span class="challenge-pts">+${chal.points} pts</span>
             </div>
             <h3>${chal.title}</h3>
-            <p>${chal.description}</p>
+            <p>${chal.description.split('\n\n')[0]}</p>
           </div>
           <div class="challenge-footer">
             <span></span> <!-- empty alignment -->
@@ -626,10 +851,17 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         `;
 
+        // Card click to show rules
+        card.addEventListener('click', (e) => {
+          if (e.target.closest('button')) return;
+          openChallengeDetailsModal(chal, status);
+        });
+
         // Join click
         const joinBtn = card.querySelector('.btn-join-challenge');
         if (joinBtn) {
           joinBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
             const btn = e.currentTarget;
             btn.disabled = true;
             try {
@@ -645,36 +877,204 @@ document.addEventListener('DOMContentLoaded', () => {
         // Active complete inside available block
         const compBtn = card.querySelector('.btn-complete-challenge');
         if (compBtn) {
-          compBtn.addEventListener('click', async (e) => {
-            const btn = e.currentTarget;
-            btn.disabled = true;
-            const progressId = btn.dataset.progressId;
-            const points = parseInt(btn.dataset.points);
-            try {
-              await API.post(`/api/challenges/${progressId}/complete`);
-              
-              elements.celebPointsEarned.textContent = points;
-              elements.completionCelebration.classList.remove('hidden');
-              setTimeout(() => {
-                elements.completionCelebration.classList.add('hidden');
-              }, 4000);
-              
-              loadChallenges(); // Refresh
-            } catch (err) {
-              showNotification('Failed to complete challenge.', 'error');
-              btn.disabled = false;
-            }
+          compBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openProofModal(status.progressId, chal.points);
           });
         }
 
         elements.availableChallengesList.appendChild(card);
       });
 
+      // 3. Render completed challenges history list
+      const completedList = activeProgress.filter(p => p.completion_status === 'completed');
+      elements.completedChallengesList.innerHTML = '';
+      if (completedList.length > 0) {
+        elements.completedChallengesWrap.classList.remove('hidden');
+        
+        completedList.forEach(prog => {
+          const card = document.createElement('div');
+          card.className = 'challenge-card glass-panel completed';
+          
+          card.innerHTML = `
+            <div>
+              <div class="challenge-top">
+                <span class="difficulty-badge ${prog.challenge.difficulty.toLowerCase()}">${prog.challenge.difficulty}</span>
+                <span class="challenge-pts">+${prog.challenge.points} pts</span>
+              </div>
+              <h3>${prog.challenge.title}</h3>
+              <p class="text-sm font-semibold text-emerald-400">✓ Completed successfully</p>
+              ${prog.proof_text ? `<p class="mt-2 text-xs italic text-slate-400">Proof: "${prog.proof_text}"</p>` : ''}
+            </div>
+          `;
+          elements.completedChallengesList.appendChild(card);
+        });
+      } else {
+        elements.completedChallengesWrap.classList.add('hidden');
+      }
+
     } catch (err) {
       showNotification('Failed to load challenges.', 'error');
     }
   }
 
+  // --- AUTHENTICATION ACTIONS & HANDLERS ---
+  function logout() {
+    state.token = null;
+    localStorage.removeItem('auth_token');
+    elements.userEmailDisplay.textContent = 'Eco Citizen';
+    navigateTo('auth');
+  }
+
+  if (elements.btnLogout) {
+    elements.btnLogout.addEventListener('click', () => {
+      logout();
+      showNotification('Logged out successfully.', 'success');
+    });
+  }
+
+  // Toggle Auth mode (login vs register)
+  if (elements.linkAuthSwitch) {
+    elements.linkAuthSwitch.addEventListener('click', (e) => {
+      e.preventDefault();
+      state.isRegistering = !state.isRegistering;
+      
+      if (state.isRegistering) {
+        elements.authTitle.textContent = 'Create account';
+        elements.authSubtitle.textContent = 'Join EcoTrack AI to monitor and reduce your footprint.';
+        elements.btnAuthSubmit.textContent = 'Create Account';
+        elements.authSwitchText.textContent = 'Already have an account?';
+        elements.linkAuthSwitch.textContent = 'Sign in';
+      } else {
+        elements.authTitle.textContent = 'Welcome back';
+        elements.authSubtitle.textContent = 'Sign in to your EcoTrack AI account to continue.';
+        elements.btnAuthSubmit.textContent = 'Sign In';
+        elements.authSwitchText.textContent = "Don't have an account?";
+        elements.linkAuthSwitch.textContent = 'Create account';
+      }
+      elements.formAuth.reset();
+    });
+  }
+
+  // Handle Auth submission
+  if (elements.formAuth) {
+    elements.formAuth.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const email = elements.inpAuthEmail.value.trim();
+      const password = elements.inpAuthPassword.value;
+      
+      elements.btnAuthSubmit.disabled = true;
+      const originalText = elements.btnAuthSubmit.textContent;
+      elements.btnAuthSubmit.textContent = state.isRegistering ? 'Creating Account...' : 'Signing In...';
+      
+      const endpoint = state.isRegistering ? '/api/auth/register' : '/api/auth/login';
+      
+      try {
+        const data = await API.post(endpoint, { email, password });
+        state.token = data.token;
+        localStorage.setItem('auth_token', data.token);
+        elements.userEmailDisplay.textContent = data.user.email;
+        
+        showNotification(state.isRegistering ? 'Account created successfully!' : 'Signed in successfully!', 'success');
+        navigateTo('dashboard');
+      } catch (err) {
+        showNotification(err.message || 'Authentication failed', 'error');
+      } finally {
+        elements.btnAuthSubmit.disabled = false;
+        elements.btnAuthSubmit.textContent = originalText;
+      }
+    });
+  }
+
+  // --- TIME WINDOW FILTER BUTTONS HANDLER ---
+  elements.filterButtons.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      elements.filterButtons.forEach(b => b.classList.remove('active'));
+      e.currentTarget.classList.add('active');
+      state.historyFilter = e.currentTarget.dataset.filter;
+      loadDashboard();
+    });
+  });
+
+  // --- THEME TOGGLE ACTIONS ---
+  if (elements.btnThemeToggle) {
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    if (savedTheme === 'light') {
+      document.body.classList.add('light-theme');
+      elements.btnThemeToggle.querySelector('.sun-icon').classList.add('hidden');
+      elements.btnThemeToggle.querySelector('.moon-icon').classList.remove('hidden');
+    }
+
+    elements.btnThemeToggle.addEventListener('click', () => {
+      const isLight = document.body.classList.toggle('light-theme');
+      localStorage.setItem('theme', isLight ? 'light' : 'dark');
+      
+      elements.btnThemeToggle.querySelector('.sun-icon').classList.toggle('hidden', isLight);
+      elements.btnThemeToggle.querySelector('.moon-icon').classList.toggle('hidden', !isLight);
+    });
+  }
+
+  // --- GEMINI API STATUS ALERTS ---
+  async function checkGeminiStatus() {
+    try {
+      const status = await API.get('/api/recommendations/status');
+      if (status.gemini_configured) {
+        elements.bannerApiUnconfigured.classList.add('hidden');
+      } else {
+        elements.bannerApiUnconfigured.classList.remove('hidden');
+      }
+    } catch (err) {
+      console.warn('Could not check Gemini API key configuration state.', err);
+    }
+  }
+
+  // --- WIZARD ACCESSIBILITY KEYBOARD TAB FOCUS TRAP ---
+  if (elements.formCalculator) {
+    elements.formCalculator.addEventListener('keydown', (e) => {
+      if (e.key !== 'Tab') return;
+      
+      const activeStepView = document.querySelector(`.calc-step-view[data-step="${state.calculatorStep}"]`);
+      if (!activeStepView) return;
+
+      const focusable = Array.from(activeStepView.querySelectorAll('input, select, button')).filter(el => {
+        return el.tabIndex >= 0 && !el.disabled && el.offsetParent !== null;
+      });
+
+      if (focusable.length === 0) return;
+
+      const firstEl = focusable[0];
+      const lastEl = focusable[focusable.length - 1];
+
+      if (e.shiftKey) { // Shift + Tab
+        if (document.activeElement === firstEl) {
+          lastEl.focus();
+          e.preventDefault();
+        }
+      } else { // Tab
+        if (document.activeElement === lastEl) {
+          firstEl.focus();
+          e.preventDefault();
+        }
+      }
+    });
+  }
+
   // --- INITIAL CHECK ---
-  navigateTo('dashboard');
+  async function initAuth() {
+    if (state.token) {
+      try {
+        const user = await API.get('/api/auth/me');
+        elements.userEmailDisplay.textContent = user.email;
+        checkGeminiStatus();
+        navigateTo('dashboard');
+      } catch (err) {
+        console.warn('Initial session validation failed', err);
+      }
+    } else {
+      navigateTo('auth');
+    }
+  }
+
+  initAuth();
 });

@@ -4,6 +4,12 @@ from backend.routes.auth import login_required
 
 recommendations_bp = Blueprint('recommendations', __name__, url_prefix='/recommendations')
 
+@recommendations_bp.route('/status', methods=['GET'])
+def get_recommendations_status():
+    from flask import current_app
+    has_key = bool(current_app.config.get('GEMINI_API_KEY'))
+    return jsonify({"gemini_configured": has_key}), 200
+
 @recommendations_bp.route('/', methods=['GET'])
 @login_required
 def get_recommendations():

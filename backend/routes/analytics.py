@@ -19,7 +19,16 @@ def get_summary():
             "previous_month_emissions": 0.0,
             "reduction_percentage": 0.0,
             "sustainability_score": 100,
+            "national_average": 1300.0,
+            "global_average": 350.0,
             "category_breakdown_percentages": {
+                "transportation": 0.0,
+                "energy": 0.0,
+                "food": 0.0,
+                "shopping": 0.0,
+                "waste": 0.0
+            },
+            "category_breakdown_values": {
                 "transportation": 0.0,
                 "energy": 0.0,
                 "food": 0.0,
@@ -112,12 +121,21 @@ def get_summary():
         "previous_month_emissions": round(previous_emissions, 2),
         "reduction_percentage": reduction_percentage,
         "sustainability_score": sustainability_score,
+        "national_average": 1300.0,
+        "global_average": 350.0,
         "category_breakdown_percentages": {
             "transportation": transport_pct,
             "energy": energy_pct,
             "food": food_pct,
             "shopping": shopping_pct,
             "waste": waste_pct
+        },
+        "category_breakdown_values": {
+            "transportation": round(transport_total, 2),
+            "energy": round(energy_total, 2),
+            "food": round(food_total, 2),
+            "shopping": round(shopping_total, 2),
+            "waste": round(waste_total, 2)
         }
     }), 200
 
@@ -125,15 +143,28 @@ def get_summary():
 @login_required
 def get_history_analytics():
     user = request.current_user
-    # Get last 6 entries asc for charts
-    entries = CarbonEntry.query.filter_by(user_id=user.id).order_by(CarbonEntry.created_at.asc()).all()
-    
+    time_filter = request.args.get('filter', '6m').lower()
+
+    query = CarbonEntry.query.filter_by(user_id=user.id)
+
+    if time_filter == 'ytd':
+        from datetime import datetime
+        current_year_start = datetime(datetime.utcnow().year, 1, 1)
+        query = query.filter(CarbonEntry.created_at >= current_year_start)
+
+    entries = query.order_by(CarbonEntry.created_at.asc()).all()
+
+    if time_filter == '3m':
+        entries = entries[-3:]
+    elif time_filter == '6m':
+        entries = entries[-6:]
+
     trends = []
     # If empty, return empty trends
     if not entries:
         return jsonify({"trends": []}), 200
 
-    for entry in entries[-6:]:
+    for entry in entries:
         label = entry.created_at.strftime("%b %d")
         trends.append({
             "label": label,

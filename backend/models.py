@@ -83,3 +83,4 @@ class ChallengeProgress(db.Model):
     end_date = db.Column(db.DateTime, nullable=False)
     completion_status = db.Column(db.String(50), default="in_progress", nullable=False) # in_progress, completed, failed
     points_earned = db.Column(db.Integer, default=0, nullable=False)
+    proof_text = db.Column(db.String(1000), nullable=True)

@@ -1,14 +1,18 @@
 import os
 import json
 import google.generativeai as genai
+from backend.constants import (
+    CAR_FACTOR, FLIGHT_FACTOR, ELECTRICITY_FACTOR, AC_KW,
+    CLOTHING_FACTOR, ELECTRONICS_FACTOR
+)
 
 # Fallback recommendations if Gemini API is not configured or fails
 def get_fallback_recommendations(data: dict) -> list:
     recommendations = []
     
     # 1. Transportation
-    car_emissions = data.get("transportation_car", 0) * 0.171
-    flights_emissions = data.get("transportation_flights", 0) * 0.115
+    car_emissions = data.get("transportation_car", 0) * CAR_FACTOR
+    flights_emissions = data.get("transportation_flights", 0) * FLIGHT_FACTOR
     
     if car_emissions > 100 or flights_emissions > 150:
         recommendations.append({
@@ -36,8 +40,8 @@ def get_fallback_recommendations(data: dict) -> list:
         })
 
     # 2. Energy
-    elec_emissions = data.get("energy_electricity", 0) * 0.45
-    ac_emissions = data.get("energy_ac", 0) * 1.5 * 0.45
+    elec_emissions = data.get("energy_electricity", 0) * ELECTRICITY_FACTOR
+    ac_emissions = data.get("energy_ac", 0) * AC_KW * ELECTRICITY_FACTOR
     
     if elec_emissions > 80:
         recommendations.append({
@@ -84,8 +88,8 @@ def get_fallback_recommendations(data: dict) -> list:
         })
 
     # 4. Shopping
-    clothing_emissions = data.get("shopping_clothing", 0) * 15.0
-    electronics_emissions = data.get("shopping_electronics", 0) * 80.0
+    clothing_emissions = data.get("shopping_clothing", 0) * CLOTHING_FACTOR
+    electronics_emissions = data.get("shopping_electronics", 0) * ELECTRONICS_FACTOR
     
     if clothing_emissions > 30:
         recommendations.append({
@@ -200,14 +204,14 @@ def generate_recommendations_gemini(data: dict) -> list:
         response = model.generate_content(prompt)
         text = response.text.strip()
         
-        # Clean any accidental markdown wrap that LLMs sometimes output despite instructions
-        if text.startswith("```"):
-            lines = text.split("\n")
-            if lines[0].startswith("```"):
-                lines = lines[1:]
-            if lines[-1].startswith("```"):
-                lines = lines[:-1]
-            text = "\n".join(lines).strip()
+        # Extract the JSON content inside markdown code blocks robustly and efficiently
+        if "```" in text:
+            import re
+            match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', text)
+            if match:
+                text = match.group(1).strip()
+            else:
+                text = text.replace("```json", "").replace("```", "").strip()
 
         parsed_json = json.loads(text)
         if isinstance(parsed_json, list) and len(parsed_json) > 0:

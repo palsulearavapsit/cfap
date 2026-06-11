@@ -1021,7 +1021,7 @@ select:focus-visible {
   margin-top: 0.5rem;
 }
 
-/* Utility helpers */
+/* Utilities & hidden */
 .hidden { display: none !important; }
 .flex-center { display: flex; align-items: center; }
 .gap-2 { gap: 0.5rem; }
@@ -1066,4 +1066,277 @@ select:focus-visible {
   50% { transform: scale(1.05); }
   70% { transform: scale(0.9); }
   100% { transform: scale(1); opacity: 1; }
+}
+
+/* Light/Dark mode transitions */
+body {
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+.glass-panel, .navbar, .btn, .nav-btn, .metric-card, .challenge-card, .rec-card, input, select {
+  transition: background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease, box-shadow 0.25s ease;
+}
+
+/* Light Theme Variables Override */
+body.light-theme {
+  --bg-color: hsl(220, 20%, 94%);
+  --panel-bg: hsla(220, 20%, 99%, 0.85);
+  --panel-border: hsla(220, 10%, 10%, 0.08);
+  --panel-glow: hsla(160, 84%, 39%, 0.02);
+  --text-primary: hsl(220, 20%, 10%);
+  --text-secondary: hsl(220, 12%, 32%);
+  --text-muted: hsl(220, 8%, 52%);
+}
+
+body.light-theme .navbar {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+body.light-theme .user-badge {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+body.light-theme .metric-value,
+body.light-theme .badge-num,
+body.light-theme .challenge-card h3,
+body.light-theme .rec-card h4,
+body.light-theme .chart-header h3,
+body.light-theme .section-header h3,
+body.light-theme .modal-header h3 {
+  color: hsl(220, 20%, 10%);
+}
+
+body.light-theme .input-group input,
+body.light-theme .input-group select {
+  background: rgba(255, 255, 255, 0.8);
+  color: hsl(220, 20%, 10%);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+body.light-theme .input-group input:focus,
+body.light-theme .input-group select:focus {
+  background: white;
+}
+
+body.light-theme .rec-card,
+body.light-theme .result-badge-card {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+/* Theme Toggle Button */
+.theme-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+  margin-right: 0.5rem;
+}
+.theme-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+body.light-theme .theme-toggle-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+.theme-toggle-btn svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+/* Alert Banner Styles */
+.alert-banner {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1.25rem;
+  margin-bottom: 1.5rem;
+  animation: slideUp 0.3s;
+}
+.alert-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--amber);
+  font-size: 0.85rem;
+}
+.alert-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+}
+
+/* Modals Backdrops and Cards */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  animation: fadeIn 0.2s ease-out;
+}
+.modal-card {
+  width: 100%;
+  max-width: 500px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+  animation: modalSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--panel-border);
+}
+.modal-header h3 {
+  font-size: 1.25rem;
+}
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.5rem;
+  cursor: pointer;
+  line-height: 1;
+}
+.modal-close-btn:hover {
+  color: var(--text-primary);
+}
+.modal-body {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.modal-difficulty-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.modal-desc-text {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+.modal-rules-section {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+}
+body.light-theme .modal-rules-section {
+  background: rgba(0, 0, 0, 0.02);
+}
+.modal-rules-section h4 {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+.modal-rules-section ul {
+  padding-left: 1.25rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.modal-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--panel-border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  background: rgba(0, 0, 0, 0.15);
+}
+body.light-theme .modal-footer {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Modal form controls */
+#form-challenge-proof textarea {
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px solid var(--panel-border);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  padding: 0.75rem;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  width: 100%;
+  resize: vertical;
+}
+body.light-theme #form-challenge-proof textarea {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+#form-challenge-proof textarea:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+
+/* History Chart Filters Layout Styles */
+.flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.filter-buttons {
+  display: flex;
+  gap: 0.25rem;
+  background: rgba(15, 23, 42, 0.25);
+  padding: 0.2rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--panel-border);
+}
+body.light-theme .filter-buttons {
+  background: rgba(0, 0, 0, 0.03);
+}
+.filter-btn {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.35rem 0.75rem;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-secondary);
+}
+.filter-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+body.light-theme .filter-btn:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+.filter-btn.active {
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.2);
+}
+.margin-top-md {
+  margin-top: 1.5rem;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modalSlideIn {
+  from { transform: translateY(-30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }

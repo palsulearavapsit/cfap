@@ -37,6 +37,7 @@ def get_active_challenges():
             "end_date": prog.end_date.isoformat(),
             "completion_status": prog.completion_status,
             "points_earned": prog.points_earned,
+            "proof_text": prog.proof_text,
             "challenge": {
                 "id": chal.id,
                 "title": chal.title,
@@ -94,6 +95,7 @@ def join_challenge():
         "end_date": new_progress.end_date.isoformat(),
         "completion_status": new_progress.completion_status,
         "points_earned": new_progress.points_earned,
+        "proof_text": None,
         "challenge": {
             "id": challenge.id,
             "title": challenge.title,
@@ -119,8 +121,12 @@ def complete_challenge(progress_id):
     if not challenge:
         return jsonify({"detail": "Associated challenge not found"}), 404
 
+    data = request.get_json(silent=True) or {}
+    proof_text = data.get("proof_text", "").strip()
+
     progress.completion_status = "completed"
     progress.points_earned = challenge.points
+    progress.proof_text = proof_text if proof_text else None
     db.session.commit()
 
     return jsonify({
@@ -131,6 +137,7 @@ def complete_challenge(progress_id):
         "end_date": progress.end_date.isoformat(),
         "completion_status": progress.completion_status,
         "points_earned": progress.points_earned,
+        "proof_text": progress.proof_text,
         "challenge": {
             "id": challenge.id,
             "title": challenge.title,
