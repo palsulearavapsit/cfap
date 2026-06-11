@@ -1,6 +1,17 @@
 // EcoTrack AI - Vanilla JS SPA App Handler
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Helper to escape HTML tags to prevent XSS
+  function escapeHTML(str) {
+    if (!str) return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   // --- APP STATE ---
   const state = {
     charts: {
@@ -19,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async request(endpoint, options = {}) {
       const headers = {
         'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
         ...options.headers,
       };
 
@@ -478,8 +490,8 @@ document.addEventListener('DOMContentLoaded', () => {
           <p>${rec.description}</p>
         </div>
         <div class="rec-action">
-          <button class="btn-complete ${rec.is_completed ? 'undo' : ''}" data-id="${rec.id}">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+          <button class="btn-complete ${rec.is_completed ? 'undo' : ''}" data-id="${rec.id}" type="button">
+            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
             <span>${rec.is_completed ? 'Undo Complete' : 'Mark Completed'}</span>
           </button>
         </div>
@@ -620,11 +632,51 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- CHALLENGES SERVICES & MODALS ---
   let activeProofProgressId = null;
   let activeProofPoints = 0;
+  let triggeringElement = null;
+
+  // Modal keydown handler (Focus Trap + Escape to close)
+  function handleModalKeydown(e, modalEl) {
+    if (e.key === 'Escape') {
+      closeModals();
+      e.preventDefault();
+      return;
+    }
+    if (e.key !== 'Tab') return;
+    const focusable = Array.from(modalEl.querySelectorAll('input, select, textarea, button, a, [tabindex="0"]')).filter(el => {
+      return el.tabIndex >= 0 && !el.disabled && el.offsetParent !== null;
+    });
+    if (focusable.length === 0) return;
+    const firstEl = focusable[0];
+    const lastEl = focusable[focusable.length - 1];
+
+    if (e.shiftKey) { // Shift + Tab
+      if (document.activeElement === firstEl) {
+        lastEl.focus();
+        e.preventDefault();
+      }
+    } else { // Tab
+      if (document.activeElement === lastEl) {
+        firstEl.focus();
+        e.preventDefault();
+      }
+    }
+  }
+
+  if (elements.modalChallengeDetails) {
+    elements.modalChallengeDetails.addEventListener('keydown', (e) => handleModalKeydown(e, elements.modalChallengeDetails));
+  }
+  if (elements.modalChallengeProof) {
+    elements.modalChallengeProof.addEventListener('keydown', (e) => handleModalKeydown(e, elements.modalChallengeProof));
+  }
 
   function closeModals() {
     elements.modalChallengeDetails.classList.add('hidden');
     elements.modalChallengeProof.classList.add('hidden');
     elements.formChallengeProof.reset();
+    if (triggeringElement) {
+      triggeringElement.focus();
+      triggeringElement = null;
+    }
   }
 
   document.querySelectorAll('.modal-close-btn').forEach(btn => {
@@ -636,7 +688,8 @@ document.addEventListener('DOMContentLoaded', () => {
     closeProofBtn.addEventListener('click', closeModals);
   }
 
-  function openChallengeDetailsModal(challenge, status) {
+  function openChallengeDetailsModal(challenge, status, triggerBtn) {
+    triggeringElement = triggerBtn || document.activeElement;
     elements.modalDetailsTitle.textContent = challenge.title;
     elements.modalDetailsDifficulty.textContent = challenge.difficulty;
     elements.modalDetailsDifficulty.className = `difficulty-badge ${challenge.difficulty.toLowerCase()}`;
@@ -697,13 +750,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     elements.modalChallengeDetails.classList.remove('hidden');
+    setTimeout(() => {
+      const firstFocusable = elements.modalChallengeDetails.querySelector('button, [tabindex="0"]');
+      if (firstFocusable) firstFocusable.focus();
+    }, 50);
   }
 
-  function openProofModal(progressId, points) {
+  function openProofModal(progressId, points, triggerBtn) {
+    triggeringElement = triggerBtn || document.activeElement;
     activeProofProgressId = progressId;
     activeProofPoints = points;
     elements.modalChallengeProof.classList.remove('hidden');
-    elements.inpProofText.focus();
+    setTimeout(() => {
+      elements.inpProofText.focus();
+    }, 50);
   }
 
   if (elements.formChallengeProof) {
@@ -763,6 +823,7 @@ document.addEventListener('DOMContentLoaded', () => {
         activeList.forEach(prog => {
           const card = document.createElement('div');
           card.className = 'challenge-card glass-panel cursor-pointer';
+          card.tabIndex = 0;
           
           const endDate = new Date(prog.end_date).toLocaleDateString();
 
@@ -777,7 +838,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
             <div class="challenge-footer">
               <span class="challenge-date">Ends: ${endDate}</span>
-              <button class="btn btn-primary btn-complete-challenge" data-progress-id="${prog.id}" data-points="${prog.challenge.points}">
+              <button class="btn btn-primary btn-complete-challenge" data-progress-id="${prog.id}" data-points="${prog.challenge.points}" type="button">
                 Complete
               </button>
             </div>
@@ -786,13 +847,22 @@ document.addEventListener('DOMContentLoaded', () => {
           // Card click to show rules
           card.addEventListener('click', (e) => {
             if (e.target.closest('button')) return;
-            openChallengeDetailsModal(prog.challenge, { isActive: true, progressId: prog.id });
+            openChallengeDetailsModal(prog.challenge, { isActive: true, progressId: prog.id }, card);
+          });
+
+          // Keyboard Enter/Space support
+          card.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              if (e.target.closest('button')) return;
+              e.preventDefault();
+              openChallengeDetailsModal(prog.challenge, { isActive: true, progressId: prog.id }, card);
+            }
           });
 
           // Mark complete click
           card.querySelector('.btn-complete-challenge').addEventListener('click', (e) => {
             e.stopPropagation();
-            openProofModal(prog.id, prog.challenge.points);
+            openProofModal(prog.id, prog.challenge.points, e.currentTarget);
           });
 
           elements.activeChallengesList.appendChild(card);
@@ -820,17 +890,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const card = document.createElement('div');
         card.className = 'challenge-card glass-panel cursor-pointer';
+        card.tabIndex = 0;
         
         let footerContent = '';
         if (status.isActive) {
           footerContent = `
-            <button class="btn btn-primary btn-complete-challenge" data-progress-id="${status.progressId}" data-points="${chal.points}">
+            <button class="btn btn-primary btn-complete-challenge" data-progress-id="${status.progressId}" data-points="${chal.points}" type="button">
               Complete
             </button>
           `;
         } else {
           footerContent = `
-            <button class="btn btn-secondary btn-join-challenge" data-id="${chal.id}">
+            <button class="btn btn-secondary btn-join-challenge" data-id="${chal.id}" type="button">
               Join Challenge
             </button>
           `;
@@ -854,7 +925,16 @@ document.addEventListener('DOMContentLoaded', () => {
         // Card click to show rules
         card.addEventListener('click', (e) => {
           if (e.target.closest('button')) return;
-          openChallengeDetailsModal(chal, status);
+          openChallengeDetailsModal(chal, status, card);
+        });
+
+        // Keyboard Enter/Space support
+        card.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            if (e.target.closest('button')) return;
+            e.preventDefault();
+            openChallengeDetailsModal(chal, status, card);
+          }
         });
 
         // Join click
@@ -879,7 +959,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (compBtn) {
           compBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            openProofModal(status.progressId, chal.points);
+            openProofModal(status.progressId, chal.points, e.currentTarget);
           });
         }
 
@@ -904,7 +984,7 @@ document.addEventListener('DOMContentLoaded', () => {
               </div>
               <h3>${prog.challenge.title}</h3>
               <p class="text-sm font-semibold text-emerald-400">✓ Completed successfully</p>
-              ${prog.proof_text ? `<p class="mt-2 text-xs italic text-slate-400">Proof: "${prog.proof_text}"</p>` : ''}
+              ${prog.proof_text ? `<p class="mt-2 text-xs italic text-slate-400">Proof: "${escapeHTML(prog.proof_text)}"</p>` : ''}
             </div>
           `;
           elements.completedChallengesList.appendChild(card);
@@ -1012,6 +1092,9 @@ document.addEventListener('DOMContentLoaded', () => {
       
       elements.btnThemeToggle.querySelector('.sun-icon').classList.toggle('hidden', isLight);
       elements.btnThemeToggle.querySelector('.moon-icon').classList.toggle('hidden', !isLight);
+      
+      // Action 15: Announce theme updates dynamically to assistive screen readers
+      showNotification(`Switched to ${isLight ? 'light' : 'dark'} theme.`, 'info');
     });
   }
 

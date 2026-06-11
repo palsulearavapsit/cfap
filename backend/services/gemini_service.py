@@ -5,14 +5,15 @@ from backend.constants import (
     CAR_FACTOR, FLIGHT_FACTOR, ELECTRICITY_FACTOR, AC_KW,
     CLOTHING_FACTOR, ELECTRONICS_FACTOR
 )
+from typing import List, Dict, Any
 
-# Fallback recommendations if Gemini API is not configured or fails
-def get_fallback_recommendations(data: dict) -> list:
-    recommendations = []
+def get_fallback_recommendations(data: dict) -> List[Dict[str, Any]]:
+    """Generates standard rules-based carbon footprint recommendations as fallback."""
+    recommendations: List[Dict[str, Any]] = []
     
     # 1. Transportation
-    car_emissions = data.get("transportation_car", 0) * CAR_FACTOR
-    flights_emissions = data.get("transportation_flights", 0) * FLIGHT_FACTOR
+    car_emissions: float = data.get("transportation_car", 0) * CAR_FACTOR
+    flights_emissions: float = data.get("transportation_flights", 0) * FLIGHT_FACTOR
     
     if car_emissions > 100 or flights_emissions > 150:
         recommendations.append({
@@ -40,8 +41,8 @@ def get_fallback_recommendations(data: dict) -> list:
         })
 
     # 2. Energy
-    elec_emissions = data.get("energy_electricity", 0) * ELECTRICITY_FACTOR
-    ac_emissions = data.get("energy_ac", 0) * AC_KW * ELECTRICITY_FACTOR
+    elec_emissions: float = data.get("energy_electricity", 0) * ELECTRICITY_FACTOR
+    ac_emissions: float = data.get("energy_ac", 0) * AC_KW * ELECTRICITY_FACTOR
     
     if elec_emissions > 80:
         recommendations.append({
@@ -69,7 +70,7 @@ def get_fallback_recommendations(data: dict) -> list:
         })
 
     # 3. Food
-    food_pref = data.get("food_preference", "non-vegetarian").lower()
+    food_pref: str = str(data.get("food_preference", "non-vegetarian")).lower()
     if food_pref == "non-vegetarian":
         recommendations.append({
             "title": "Integrate Meat-Free Days",
@@ -88,8 +89,8 @@ def get_fallback_recommendations(data: dict) -> list:
         })
 
     # 4. Shopping
-    clothing_emissions = data.get("shopping_clothing", 0) * CLOTHING_FACTOR
-    electronics_emissions = data.get("shopping_electronics", 0) * ELECTRONICS_FACTOR
+    clothing_emissions: float = data.get("shopping_clothing", 0) * CLOTHING_FACTOR
+    electronics_emissions: float = data.get("shopping_electronics", 0) * ELECTRONICS_FACTOR
     
     if clothing_emissions > 30:
         recommendations.append({
@@ -109,7 +110,7 @@ def get_fallback_recommendations(data: dict) -> list:
         })
 
     # 5. Waste
-    if data.get("waste_recycling", "sometimes").lower() == "rarely":
+    if str(data.get("waste_recycling", "sometimes")).lower() == "rarely":
         recommendations.append({
             "title": "Set Up Household Recycling Station",
             "description": "Separate paper, cardboard, glass, and metal from general landfill waste. Check local guidelines for recyclable plastics.",
@@ -117,7 +118,7 @@ def get_fallback_recommendations(data: dict) -> list:
             "expected_reduction": 15.0,
             "estimated_savings": 0.0
         })
-    if data.get("waste_plastic", "average").lower() in ["average", "high"]:
+    if str(data.get("waste_plastic", "average")).lower() in ["average", "high"]:
         recommendations.append({
             "title": "Adopt Zero-Waste Shopping Habits",
             "description": "Carry reusable canvas bags, purchase items in bulk, and refuse single-use plastic water bottles. Bring containers for bulk food.",
@@ -146,12 +147,9 @@ def get_fallback_recommendations(data: dict) -> list:
     return recommendations[:3]  # Return top 3 recommendations
 
 
-def generate_recommendations_gemini(data: dict) -> list:
-    """
-    Generates 3 personalized recommendations using the Gemini API based on user's footprint data.
-    If the API key is not configured or an error occurs, falls back to the deterministic rule-based generator.
-    """
-    api_key = os.getenv("GEMINI_API_KEY")
+def generate_recommendations_gemini(data: dict) -> List[Dict[str, Any]]:
+    """Generates 3 personalized recommendations using the Gemini API based on surveys."""
+    api_key: Optional[str] = os.getenv("GEMINI_API_KEY")
     if not api_key or api_key == "YOUR_GEMINI_API_KEY":
         print("[WARNING] Gemini API Key not configured. Using rule-based fallback recommendations.")
         return get_fallback_recommendations(data)
@@ -161,7 +159,7 @@ def generate_recommendations_gemini(data: dict) -> list:
         # Using the standard modern flash model
         model = genai.GenerativeModel("gemini-2.5-flash")
         
-        prompt = f"""
+        prompt: str = f"""
         You are an expert environmental consultant and sustainability advisor.
         Analyze the following monthly lifestyle and carbon footprint parameters for a user and suggest exactly 3 highly personalized, concrete, actionable recommendations to reduce their footprint and save money.
 
@@ -202,7 +200,7 @@ def generate_recommendations_gemini(data: dict) -> list:
         """
 
         response = model.generate_content(prompt)
-        text = response.text.strip()
+        text: str = response.text.strip()
         
         # Extract the JSON content inside markdown code blocks robustly and efficiently
         if "```" in text:
@@ -213,12 +211,12 @@ def generate_recommendations_gemini(data: dict) -> list:
             else:
                 text = text.replace("```json", "").replace("```", "").strip()
 
-        parsed_json = json.loads(text)
+        parsed_json: list = json.loads(text)
         if isinstance(parsed_json, list) and len(parsed_json) > 0:
             # Normalize key names and types to ensure robust compatibility
-            normalized = []
+            normalized: List[Dict[str, Any]] = []
             for rec in parsed_json[:3]:
-                difficulty = rec.get("difficulty", "Beginner")
+                difficulty: str = rec.get("difficulty", "Beginner")
                 if difficulty not in ["Beginner", "Intermediate", "Advanced", "Expert"]:
                     difficulty = "Beginner"
                 

@@ -1,17 +1,18 @@
-from flask import Blueprint, request, jsonify
-from backend.models import db, CarbonEntry, Recommendation, ChallengeProgress
+from flask import Blueprint, request, jsonify, Response
+from backend.models import CarbonEntry, Recommendation, ChallengeProgress
 from backend.routes.auth import login_required
-from backend.routes.calculator import calculate_emissions
+from typing import Any, List, Dict
 
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/analytics')
 
 @analytics_bp.route('/summary', methods=['GET'])
 @login_required
-def get_summary():
-    user = request.current_user
+def get_summary() -> Response:
+    """Returns a carbon footprint summary, category breakdown, and sustainability score."""
+    user = request.current_user # type: ignore
     
-    # Query carbon entries desc
-    entries = CarbonEntry.query.filter_by(user_id=user.id).order_by(CarbonEntry.created_at.desc()).all()
+    # Query carbon entries desc (limit to 2 most recent for summary metrics)
+    entries: List[CarbonEntry] = CarbonEntry.query.filter_by(user_id=user.id).order_by(CarbonEntry.created_at.desc()).limit(2).all()
     
     if not entries:
         return jsonify({
@@ -37,55 +38,44 @@ def get_summary():
             }
         }), 200
 
-    current_entry = entries[0]
-    previous_entry = entries[1] if len(entries) > 1 else None
+    current_entry: CarbonEntry = entries[0]
+    previous_entry: Any = entries[1] if len(entries) > 1 else None
     
-    current_emissions = current_entry.total_emissions
-    previous_emissions = previous_entry.total_emissions if previous_entry else 0.0
+    current_emissions: float = current_entry.total_emissions
+    previous_emissions: float = previous_entry.total_emissions if previous_entry else 0.0
     
-    reduction_percentage = 0.0
+    reduction_percentage: float = 0.0
     if previous_emissions > 0:
         reduction_percentage = ((previous_emissions - current_emissions) / previous_emissions) * 100
         reduction_percentage = round(reduction_percentage, 1)
 
-    # Use calculate_emissions algorithm logic to get percentages
-    # Mock parameters matching calculate_emissions dict requirements
-    calc_data = {
-        "transportation_car": current_entry.transportation_car,
-        "transportation_bike": current_entry.transportation_bike,
-        "transportation_public": current_entry.transportation_public,
-        "transportation_flights": current_entry.transportation_flights,
-        "energy_electricity": current_entry.energy_electricity,
-        "energy_ac": current_entry.energy_ac,
-        "energy_appliance": current_entry.energy_appliance,
-        "food_preference": current_entry.food_preference,
-        "shopping_clothing": current_entry.shopping_clothing,
-        "shopping_electronics": current_entry.shopping_electronics,
-        "waste_recycling": current_entry.waste_recycling,
-        "waste_plastic": current_entry.waste_plastic
-    }
-    
-    # Compute breakdown detail
+    # Compute breakdown detail using conversion constants
     from backend.routes.calculator import CAR_FACTOR, BIKE_FACTOR, PUBLIC_FACTOR, FLIGHT_FACTOR, \
                                          ELECTRICITY_FACTOR, AC_KW, APPLIANCE_KW, FOOD_FACTORS, \
                                          CLOTHING_FACTOR, ELECTRONICS_FACTOR, RECYCLING_FACTORS, PLASTIC_FACTORS
 
-    t_car = current_entry.transportation_car * CAR_FACTOR
-    t_bike = current_entry.transportation_bike * BIKE_FACTOR
-    t_public = current_entry.transportation_public * PUBLIC_FACTOR
-    t_flights = current_entry.transportation_flights * FLIGHT_FACTOR
-    transport_total = t_car + t_bike + t_public + t_flights
+    t_car: float = current_entry.transportation_car * CAR_FACTOR
+    t_bike: float = current_entry.transportation_bike * BIKE_FACTOR
+    t_public: float = current_entry.transportation_public * PUBLIC_FACTOR
+    t_flights: float = current_entry.transportation_flights * FLIGHT_FACTOR
+    transport_total: float = t_car + t_bike + t_public + t_flights
 
-    e_elec = current_entry.energy_electricity * ELECTRICITY_FACTOR
-    e_ac = current_entry.energy_ac * AC_KW * ELECTRICITY_FACTOR
-    e_app = current_entry.energy_appliance * APPLIANCE_KW * ELECTRICITY_FACTOR
-    energy_total = e_elec + e_ac + e_app
+    e_elec: float = current_entry.energy_electricity * ELECTRICITY_FACTOR
+    e_ac: float = current_entry.energy_ac * AC_KW * ELECTRICITY_FACTOR
+    e_app: float = current_entry.energy_appliance * APPLIANCE_KW * ELECTRICITY_FACTOR
+    energy_total: float = e_elec + e_ac + e_app
 
-    food_total = FOOD_FACTORS.get(current_entry.food_preference.lower(), 300.0)
-    shopping_total = (current_entry.shopping_clothing * CLOTHING_FACTOR) + (current_entry.shopping_electronics * ELECTRONICS_FACTOR)
-    waste_total = RECYCLING_FACTORS.get(current_entry.waste_recycling.lower(), 30.0) + PLASTIC_FACTORS.get(current_entry.waste_plastic.lower(), 25.0)
+    food_total: float = FOOD_FACTORS.get(current_entry.food_preference.lower(), 300.0)
+    shopping_total: float = (current_entry.shopping_clothing * CLOTHING_FACTOR) + (current_entry.shopping_electronics * ELECTRONICS_FACTOR)
+    waste_total: float = RECYCLING_FACTORS.get(current_entry.waste_recycling.lower(), 30.0) + PLASTIC_FACTORS.get(current_entry.waste_plastic.lower(), 25.0)
 
-    total = transport_total + energy_total + food_total + shopping_total + waste_total
+    total: float = transport_total + energy_total + food_total + shopping_total + waste_total
+
+    transport_pct: float = 0.0
+    energy_pct: float = 0.0
+    food_pct: float = 0.0
+    shopping_pct: float = 0.0
+    waste_pct: float = 0.0
 
     if total > 0:
         transport_pct = round((transport_total / total) * 100, 1)
@@ -93,28 +83,26 @@ def get_summary():
         food_pct = round((food_total / total) * 100, 1)
         shopping_pct = round((shopping_total / total) * 100, 1)
         waste_pct = round((waste_total / total) * 100, 1)
-    else:
-        transport_pct = energy_pct = food_pct = shopping_pct = waste_pct = 0.0
 
     # Calculate Sustainability Score
-    base_score = 80
+    base_score: int = 80
     if current_emissions > 100:
-        penalty = int((current_emissions - 100) // 10)
+        penalty: int = int((current_emissions - 100) // 10)
         base_score -= penalty
 
-    completed_challenges = ChallengeProgress.query.filter_by(
+    completed_challenges: int = ChallengeProgress.query.filter_by(
         user_id=user.id,
         completion_status="completed"
     ).count()
     base_score += (completed_challenges * 5)
 
-    completed_recs = Recommendation.query.filter_by(
+    completed_recs: int = Recommendation.query.filter_by(
         user_id=user.id,
         is_completed=True
     ).count()
     base_score += (completed_recs * 3)
 
-    sustainability_score = max(10, min(100, base_score))
+    sustainability_score: int = max(10, min(100, base_score))
 
     return jsonify({
         "current_month_emissions": round(current_emissions, 2),
@@ -141,31 +129,36 @@ def get_summary():
 
 @analytics_bp.route('/history', methods=['GET'])
 @login_required
-def get_history_analytics():
-    user = request.current_user
-    time_filter = request.args.get('filter', '6m').lower()
+def get_history_analytics() -> Response:
+    """Returns chronologically ordered monthly emission records filtered by time window."""
+    user = request.current_user # type: ignore
+    time_filter: str = request.args.get('filter', '6m').lower()
+
+    if time_filter not in ['3m', '6m', 'ytd']:
+        time_filter = '6m' # Safe default fallback
 
     query = CarbonEntry.query.filter_by(user_id=user.id)
 
     if time_filter == 'ytd':
         from datetime import datetime
-        current_year_start = datetime(datetime.utcnow().year, 1, 1)
+        current_year_start: datetime = datetime(datetime.utcnow().year, 1, 1)
         query = query.filter(CarbonEntry.created_at >= current_year_start)
-
-    entries = query.order_by(CarbonEntry.created_at.asc()).all()
-
-    if time_filter == '3m':
-        entries = entries[-3:]
+        entries: List[CarbonEntry] = query.order_by(CarbonEntry.created_at.asc()).all()
+    elif time_filter == '3m':
+        entries = query.order_by(CarbonEntry.created_at.desc()).limit(3).all()
+        entries.reverse()
     elif time_filter == '6m':
-        entries = entries[-6:]
+        entries = query.order_by(CarbonEntry.created_at.desc()).limit(6).all()
+        entries.reverse()
+    else:
+        entries = query.order_by(CarbonEntry.created_at.asc()).all()
 
-    trends = []
-    # If empty, return empty trends
+    trends: List[Dict[str, Any]] = []
     if not entries:
         return jsonify({"trends": []}), 200
 
     for entry in entries:
-        label = entry.created_at.strftime("%b %d")
+        label: str = entry.created_at.strftime("%b %d")
         trends.append({
             "label": label,
             "emissions": round(entry.total_emissions, 2)

@@ -1,13 +1,15 @@
 import os
-from flask import Flask, send_from_directory, request, jsonify
+import logging
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
-from backend.config import Config
 from backend.models import db, Challenge
+from typing import Any, Optional
 
-def create_app(config_class=None):
+def create_app(config_class: Optional[Any] = None) -> Flask:
+    """Application factory for EcoTrack AI Flask web application."""
     if config_class is None:
         from backend.config import config_by_name
-        env = os.getenv("FLASK_ENV", "development")
+        env: str = os.getenv("FLASK_ENV", "development")
         config_class = config_by_name.get(env, config_by_name["development"])
     elif isinstance(config_class, str):
         from backend.config import config_by_name
@@ -17,6 +19,13 @@ def create_app(config_class=None):
     # Set static_url_path to "" so frontend resources are served at the root (e.g. /css/style.css)
     app = Flask(__name__, static_folder="../frontend", static_url_path="")
     app.config.from_object(config_class)
+
+    # Action 1: Standardized Centralized Logger configuration
+    logging.basicConfig(
+        level=logging.INFO,
+        format='[%(asctime)s] %(levelname)s in %(module)s: %(message)s'
+    )
+    app.logger.info("Initializing EcoTrack AI Web Application Factory...")
 
     # Enable CORS for cross-origin local testing
     CORS(app)
@@ -42,23 +51,52 @@ def create_app(config_class=None):
 
     # Serve index.html at root
     @app.route('/')
-    def serve_index():
+    def serve_index() -> Response:
         return app.send_static_file('index.html')
 
     # Catch-all route to serve index.html for SPA client-side routing
     @app.errorhandler(404)
-    def page_not_found(e):
+    def page_not_found(e: Any) -> Response:
         # Check if the requested path starts with /api
         # If it does, return a JSON 404, not the HTML index
         if request.path.startswith('/api'):
             return jsonify({"detail": "Not found"}), 404
         return app.send_static_file('index.html')
 
+    # Action 5: Global Request CSRF Validation Hook
+    @app.before_request
+    def validate_csrf() -> Optional[Response]:
+        """Intercepts writing state-changing API endpoints, validating secure custom header."""
+        if request.method in ["POST", "PUT", "PATCH", "DELETE"]:
+            if request.path.startswith('/api') and not app.config.get('TESTING'):
+                if request.headers.get('X-Requested-With') != 'XMLHttpRequest':
+                    app.logger.warning(f"Rejected state-changing request to {request.path} due to missing secure CSRF header.")
+                    return jsonify({"detail": "CSRF validation failed. Missing secure header."}), 403
+        return None
+
+    # Action 4: Global Response Security Headers Hook
+    @app.after_request
+    def add_security_headers(response: Response) -> Response:
+        """Injects recommended secure HTTP response headers to harden the application."""
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['Content-Security-Policy'] = (
+            "default-src 'self'; "
+            "script-src 'self' cdn.jsdelivr.net; "
+            "style-src 'self' fonts.googleapis.com; "
+            "font-src fonts.gstatic.com; "
+            "img-src 'self' data:; "
+            "connect-src 'self'"
+        )
+        response.headers['Referrer-Policy'] = 'no-referrer-when-downgrade'
+        return response
+
     # Seed Database on startup
     with app.app_context():
         try:
             # Automatically ensure MySQL database exists before creating tables
-            db_uri = app.config.get('SQLALCHEMY_DATABASE_URI')
+            db_uri: Optional[str] = app.config.get('SQLALCHEMY_DATABASE_URI')
             if db_uri and db_uri.startswith('mysql'):
                 try:
                     server_uri, db_name = db_uri.rsplit('/', 1)
@@ -72,13 +110,14 @@ def create_app(config_class=None):
                         conn.execution_options(isolation_level="AUTOCOMMIT")
                         conn.execute(text(f"CREATE DATABASE IF NOT EXISTS `{db_name}`"))
                     temp_engine.dispose()
-                    print(f"Database '{db_name}' ensured successfully.")
-                except Exception as e:
-                    print(f"[WARNING] Could not automatically create MySQL database: {e}")
+                    app.logger.info(f"Database '{db_name}' ensured successfully.")
+                except Exception as mysql_err:
+                    app.logger.warning(f"Could not automatically create MySQL database: {mysql_err}")
 
             db.create_all()
-            # Seed default challenges if empty
-            if Challenge.query.count() == 0:
+            
+            # Action 9: Seeding check optimization (uses LIMIT 1 check instead of scanning full table counts)
+            if Challenge.query.first() is None:
                 challenges = [
                     Challenge(
                         id=1,
@@ -112,15 +151,15 @@ def create_app(config_class=None):
                 try:
                     db.session.bulk_save_objects(challenges)
                     db.session.commit()
-                    print("Seeded default challenges successfully.")
-                except Exception as e:
+                    app.logger.info("Seeded default challenges successfully.")
+                except Exception as seed_err:
                     db.session.rollback()
-                    print(f"Error seeding challenges: {e}")
+                    app.logger.error(f"Error seeding challenges: {seed_err}")
         except Exception as db_init_err:
-            print(f"[ERROR] Database creation/seeding failed at startup: {db_init_err}")
+            app.logger.critical(f"Database creation/seeding failed at startup: {db_init_err}")
 
     @app.cli.command("db-backup")
-    def db_backup():
+    def db_backup() -> None:
         """Backup all user carbon footprint history to a JSON file."""
         import json
         from datetime import datetime
@@ -195,6 +234,6 @@ def create_app(config_class=None):
         with open(backup_file, "w") as f:
             json.dump(data, f, indent=2)
             
-        print(f"Database backed up successfully to: {backup_file}")
+        app.logger.info(f"Database backed up successfully to: {backup_file}")
 
     return app

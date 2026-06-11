@@ -180,6 +180,23 @@ class EcoTrackTestCase(unittest.TestCase):
         prog_db = db.session.get(ChallengeProgress, progress["id"])
         self.assertEqual(prog_db.proof_text, "Completed challenge by switching off lights")
 
+        # 4. Join and attempt to complete another challenge with too long proof
+        join_res2 = self.client.post('/api/challenges/join',
+            data=json.dumps({"challenge_id": 2}),
+            content_type='application/json',
+            headers=self.headers
+        )
+        self.assertEqual(join_res2.status_code, 201)
+        progress2 = json.loads(join_res2.data.decode('utf-8'))
+
+        comp_res2 = self.client.post(f'/api/challenges/{progress2["id"]}/complete',
+            data=json.dumps({"proof_text": "x" * 1001}),
+            content_type='application/json',
+            headers=self.headers
+        )
+        self.assertEqual(comp_res2.status_code, 400)
+        self.assertIn("cannot exceed 1000 characters", json.loads(comp_res2.data.decode('utf-8'))["detail"])
+
     def test_registration_and_login_success(self):
         # Register a new user
         reg_res = self.client.post('/api/auth/register',
@@ -224,7 +241,23 @@ class EcoTrackTestCase(unittest.TestCase):
             content_type='application/json'
         )
         self.assertEqual(res.status_code, 400)
-        self.assertIn("must be at least 6 characters", json.loads(res.data.decode('utf-8'))["detail"])
+        self.assertIn("must be between 6 and 72 characters", json.loads(res.data.decode('utf-8'))["detail"])
+
+        # Long password (Bcrypt DOS protection limit)
+        res = self.client.post('/api/auth/register',
+            data=json.dumps({"email": "valid@ecotrack.ai", "password": "x" * 73}),
+            content_type='application/json'
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("must be between 6 and 72 characters", json.loads(res.data.decode('utf-8'))["detail"])
+
+        # Long email
+        res = self.client.post('/api/auth/register',
+            data=json.dumps({"email": ("a" * 250) + "@ecotrack.ai", "password": "securepassword"}),
+            content_type='application/json'
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("must not exceed 255 characters", json.loads(res.data.decode('utf-8'))["detail"])
 
         # Invalid email format
         res = self.client.post('/api/auth/register',
@@ -312,6 +345,93 @@ class EcoTrackTestCase(unittest.TestCase):
         # e4 is > 200 days ago, which is late 2025. It should be filtered out.
         # Should return e1, e2, e3, e_ytd.
         self.assertEqual(len(data_ytd["trends"]), 4)
+
+    def test_security_headers(self):
+        """Action 10: Verify presence of critical security HTTP headers on responses."""
+        res = self.client.get('/api/auth/me', headers=self.headers)
+        self.assertEqual(res.headers.get('X-Content-Type-Options'), 'nosniff')
+        self.assertEqual(res.headers.get('X-Frame-Options'), 'DENY')
+        self.assertEqual(res.headers.get('X-XSS-Protection'), '1; mode=block')
+        self.assertIn('Content-Security-Policy', res.headers)
+        self.assertEqual(res.headers.get('Referrer-Policy'), 'no-referrer-when-downgrade')
+
+    def test_recommendation_caching(self):
+        """Action 11: Verify recommendation cache lookup bypasses calling Gemini again."""
+        from backend.models import RecommendationCache
+        # Ensure cache starts empty
+        self.assertEqual(RecommendationCache.query.count(), 0)
+
+        payload = {
+            "transportation_car": 500,
+            "transportation_bike": 20,
+            "transportation_public": 100,
+            "transportation_flights": 0,
+            "energy_electricity": 150,
+            "energy_ac": 20,
+            "energy_appliance": 10,
+            "food_preference": "vegan",
+            "shopping_clothing": 2,
+            "shopping_electronics": 0,
+            "waste_recycling": "always",
+            "waste_plastic": "low"
+        }
+
+        # First request: generates and caches recommendations
+        res1 = self.client.post('/api/calculator/submit',
+            data=json.dumps(payload),
+            content_type='application/json',
+            headers=self.headers
+        )
+        self.assertEqual(res1.status_code, 201)
+        self.assertEqual(RecommendationCache.query.count(), 1)
+
+        # Retrieve hash and modify stored recommendation in cache to check if we hit it on second request
+        cache_item = RecommendationCache.query.first()
+        original_json = cache_item.recommendations_json
+        modified_recs = json.loads(original_json)
+        modified_recs[0]["title"] = "Test Cached Title"
+        cache_item.recommendations_json = json.dumps(modified_recs)
+        db.session.commit()
+
+        # Second request: identical payload, should load from cache
+        res2 = self.client.post('/api/calculator/submit',
+            data=json.dumps(payload),
+            content_type='application/json',
+            headers=self.headers
+        )
+        self.assertEqual(res2.status_code, 201)
+        
+        # Check active recommendations returned for user
+        recs_res = self.client.get('/api/recommendations/', headers=self.headers)
+        recs_data = json.loads(recs_res.data.decode('utf-8'))
+        titles = [r["title"] for r in recs_data]
+        self.assertIn("Test Cached Title", titles)
+
+    def test_extreme_bounds_survey_metrics(self):
+        """Action 12: Verify calculator logic behaves correctly under boundary values (zeros)."""
+        payload_zeros = {
+            "transportation_car": 0,
+            "transportation_bike": 0,
+            "transportation_public": 0,
+            "transportation_flights": 0,
+            "energy_electricity": 0,
+            "energy_ac": 0,
+            "energy_appliance": 0,
+            "food_preference": "vegan",
+            "shopping_clothing": 0,
+            "shopping_electronics": 0,
+            "waste_recycling": "always",
+            "waste_plastic": "low"
+        }
+        res = self.client.post('/api/calculator/submit',
+            data=json.dumps(payload_zeros),
+            content_type='application/json',
+            headers=self.headers
+        )
+        self.assertEqual(res.status_code, 201)
+        data = json.loads(res.data.decode('utf-8'))
+        # Total emissions should be calculated correctly (with zero variables food=100 + waste=20 => 120)
+        self.assertEqual(data["total_emissions"], 120.0)
 
     def test_config_profiles(self):
         from backend.config import DevelopmentConfig, TestingConfig, ProductionConfig

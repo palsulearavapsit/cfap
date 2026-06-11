@@ -1,39 +1,30 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response, current_app
 from backend.models import db, Recommendation
 from backend.routes.auth import login_required
+from typing import List
 
 recommendations_bp = Blueprint('recommendations', __name__, url_prefix='/recommendations')
 
 @recommendations_bp.route('/status', methods=['GET'])
-def get_recommendations_status():
-    from flask import current_app
-    has_key = bool(current_app.config.get('GEMINI_API_KEY'))
+def get_recommendations_status() -> Response:
+    """Returns whether the Gemini API key is currently configured on the server."""
+    has_key: bool = bool(current_app.config.get('GEMINI_API_KEY'))
     return jsonify({"gemini_configured": has_key}), 200
 
 @recommendations_bp.route('/', methods=['GET'])
 @login_required
-def get_recommendations():
-    user = request.current_user
-    recs = Recommendation.query.filter_by(user_id=user.id).order_by(Recommendation.created_at.desc()).all()
-    output = []
-    for r in recs:
-        output.append({
-            "id": r.id,
-            "user_id": r.user_id,
-            "title": r.title,
-            "description": r.description,
-            "difficulty": r.difficulty,
-            "expected_reduction": r.expected_reduction,
-            "estimated_savings": r.estimated_savings,
-            "is_completed": r.is_completed,
-            "created_at": r.created_at.isoformat()
-        })
-    return jsonify(output), 200
+def get_recommendations() -> Response:
+    """Returns a list of all personalized sustainability recommendations for the user."""
+    user = request.current_user # type: ignore
+    recs: List[Recommendation] = Recommendation.query.filter_by(user_id=user.id).order_by(Recommendation.created_at.desc()).all()
+    # Action 3: Serialize recommendations list using model to_dict representation
+    return jsonify([r.to_dict() for r in recs]), 200
 
 @recommendations_bp.route('/<int:rec_id>/complete', methods=['PATCH'])
 @login_required
-def toggle_recommendation(rec_id):
-    user = request.current_user
+def toggle_recommendation(rec_id: int) -> Response:
+    """Toggles the completion status checkbox of a personalized recommendation."""
+    user = request.current_user # type: ignore
     rec = Recommendation.query.filter_by(id=rec_id, user_id=user.id).first()
 
     if not rec:
@@ -43,14 +34,5 @@ def toggle_recommendation(rec_id):
     rec.is_completed = not rec.is_completed
     db.session.commit()
 
-    return jsonify({
-        "id": rec.id,
-        "user_id": rec.user_id,
-        "title": rec.title,
-        "description": rec.description,
-        "difficulty": rec.difficulty,
-        "expected_reduction": rec.expected_reduction,
-        "estimated_savings": rec.estimated_savings,
-        "is_completed": rec.is_completed,
-        "created_at": rec.created_at.isoformat()
-    }), 200
+    # Action 3: Serialize output using to_dict() model representation
+    return jsonify(rec.to_dict()), 200
