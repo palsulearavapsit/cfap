@@ -9,21 +9,21 @@ This task list identifies pending feature enhancements, security updates, and pe
 - [x] Enforce rate-limiting on user registration/login endpoints to prevent brute-force attacks.
 
 ## 2. Advanced Analytics & Charts
-- [ ] Add view filtering controls (3-Month, 6-Month, Year-to-Date view) for the history line chart on the dashboard.
-- [ ] Add average carbon comparison charts showing user emissions relative to national averages.
-- [ ] Enhance category breakdown visualization with interactive tooltips displaying absolute values (in kg) alongside percentages.
+- [x] Add view filtering controls (3-Month, 6-Month, Year-to-Date view) for the history line chart on the dashboard.
+- [x] Add average carbon comparison charts showing user emissions relative to national averages.
+- [x] Enhance category breakdown visualization with interactive tooltips displaying absolute values (in kg) alongside percentages.
 
 ## 3. Challenge Enhancements
-- [ ] Add description popups/modals to challenges detailing step-by-step rules and tracking habits.
-- [ ] Implement a challenge completion proof workflow (e.g. uploading proof images or linking device stats).
-- [ ] Store past completed challenges history dynamically in the user profile view.
+- [x] Add description popups/modals to challenges detailing step-by-step rules and tracking habits.
+- [x] Implement a challenge completion proof workflow (e.g. uploading proof images or linking device stats).
+- [x] Store past completed challenges history dynamically in the user profile view.
 
 ## 4. Production Readiness & Infrastructure
-- [ ] Integrate Flask-Migrate (Alembic) for robust database schema versioning.
-- [ ] Add production database configuration profiles for PostgreSQL / Supabase, separating development and production setups cleanly.
-- [ ] Implement automatic daily backups of user footprint history.
+- [x] Integrate Flask-Migrate (Alembic) for robust database schema versioning.
+- [x] Add production database configuration profiles for PostgreSQL / Supabase, separating development and production setups cleanly.
+- [x] Implement automatic daily backups of user footprint history.
 
 ## 5. UI/UX and Accessibility Refinements
-- [ ] Integrate a Dark/Light mode toggle utilizing HSL theme transitions.
-- [ ] Add keyboard-trap handling inside the wizard steps to prevent tab indexing outside of active views.
-- [ ] Add clear alert banners for instances when the Gemini API is unconfigured, warning users that fallback recommendations are active.
+- [x] Integrate a Dark/Light mode toggle utilizing HSL theme transitions.
+- [x] Add keyboard-trap handling inside the wizard steps to prevent tab indexing outside of active views.
+- [x] Add clear alert banners for instances when the Gemini API is unconfigured, warning users that fallback recommendations are active.
