@@ -69,8 +69,14 @@ def join_challenge() -> Response:
         points_earned=0
     )
     
-    db.session.add(new_progress)
-    db.session.commit()
+    try:
+        db.session.add(new_progress)
+        db.session.commit()
+    except Exception as db_err:
+        db.session.rollback()
+        from flask import current_app
+        current_app.logger.error(f"Join challenge database error: {str(db_err)}", exc_info=True)
+        return jsonify({"detail": "Database operation failed. Please try again later."}), 500
 
     # Action 3: Serialize output using to_dict() model representation
     return jsonify(new_progress.to_dict()), 201
@@ -104,10 +110,16 @@ def complete_challenge(progress_id: int) -> Response:
     if len(proof_text) > 1000:
         return jsonify({"detail": "Proof text cannot exceed 1000 characters"}), 400
 
-    progress.completion_status = "completed"
-    progress.points_earned = challenge.points
-    progress.proof_text = proof_text if proof_text else None
-    db.session.commit()
+    try:
+        progress.completion_status = "completed"
+        progress.points_earned = challenge.points
+        progress.proof_text = proof_text if proof_text else None
+        db.session.commit()
+    except Exception as db_err:
+        db.session.rollback()
+        from flask import current_app
+        current_app.logger.error(f"Complete challenge database error: {str(db_err)}", exc_info=True)
+        return jsonify({"detail": "Database operation failed. Please try again later."}), 500
 
     # Action 3: Serialize output using to_dict() model representation
     return jsonify(progress.to_dict()), 200

@@ -22,6 +22,9 @@
 </head>
 <body>
 
+  <!-- Route Announcer for Accessibility -->
+  <div id="route-announcer" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+
   <!-- Screen Reader Skip Link -->
   <a href="#main-content" class="skip-link">Skip to main content</a>
 
@@ -181,7 +184,8 @@
               </div>
             </div>
             <div class="chart-container">
-              <canvas id="chart-history"></canvas>
+              <canvas id="chart-history" aria-label="Emission History Chart" role="img"></canvas>
+              <div class="sr-only" id="chart-history-summary">This line chart tracks your monthly CO2 emissions over time. The historical trends will show your progress after you submit the footprint calculator.</div>
             </div>
           </div>
 
@@ -191,7 +195,8 @@
               <p>Percentage distribution of emissions</p>
             </div>
             <div class="chart-container">
-              <canvas id="chart-pie"></canvas>
+              <canvas id="chart-pie" aria-label="Category Breakdown Chart" role="img"></canvas>
+              <div class="sr-only" id="chart-pie-summary">This doughnut chart shows the percentage distribution of your monthly emissions across transportation, energy, food, shopping, and waste.</div>
             </div>
           </div>
         </div>
@@ -204,7 +209,8 @@
               <p>Your latest monthly emissions compared to benchmarks (in kg CO₂)</p>
             </div>
             <div class="chart-container">
-              <canvas id="chart-comparison"></canvas>
+              <canvas id="chart-comparison" aria-label="National and Global Benchmark Comparison Chart" role="img"></canvas>
+              <div class="sr-only" id="chart-comparison-summary">This bar chart compares your latest monthly emissions against the European national average of 1300 kg CO2 and the global sustainability target of 350 kg CO2.</div>
             </div>
           </div>
         </div>

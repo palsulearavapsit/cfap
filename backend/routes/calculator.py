@@ -58,6 +58,18 @@ def submit_calculator() -> Response:
         "energy_electricity", "energy_ac", "energy_appliance",
         "shopping_clothing", "shopping_electronics"
     ]
+    # Secure maximum bounds checking limits dictionary
+    limits = {
+        "transportation_car": 100000.0,
+        "transportation_bike": 10000.0,
+        "transportation_public": 100000.0,
+        "transportation_flights": 100000.0,
+        "energy_electricity": 50000.0,
+        "energy_ac": 744.0,
+        "energy_appliance": 744.0,
+        "shopping_clothing": 1000.0,
+        "shopping_electronics": 100.0
+    }
     for field in numeric_fields:
         val: Any = data.get(field)
         if val is not None:
@@ -68,6 +80,9 @@ def submit_calculator() -> Response:
                 float_val: float = float(val)
                 if float_val < 0:
                     return jsonify({"detail": f"{field} must be a non-negative value"}), 400
+                max_limit: float = limits.get(field, 100000.0)
+                if float_val > max_limit:
+                    return jsonify({"detail": f"{field} exceeds maximum allowed value of {max_limit}"}), 400
             except (ValueError, TypeError):
                 return jsonify({"detail": f"{field} must be a valid numeric value"}), 400
 
@@ -171,4 +186,6 @@ def submit_calculator() -> Response:
 
     except Exception as db_err:
         db.session.rollback()
-        return jsonify({"detail": f"Database operation failed: {str(db_err)}"}), 500
+        from flask import current_app
+        current_app.logger.error(f"Calculator database commit failed: {str(db_err)}", exc_info=True)
+        return jsonify({"detail": "Database operation failed. Please try again later."}), 500

@@ -30,9 +30,15 @@ def toggle_recommendation(rec_id: int) -> Response:
     if not rec:
         return jsonify({"detail": "Recommendation not found"}), 404
 
-    # Toggle the boolean completion status
-    rec.is_completed = not rec.is_completed
-    db.session.commit()
+    try:
+        # Toggle the boolean completion status
+        rec.is_completed = not rec.is_completed
+        db.session.commit()
+    except Exception as db_err:
+        db.session.rollback()
+        from flask import current_app
+        current_app.logger.error(f"Toggle recommendation database error: {str(db_err)}", exc_info=True)
+        return jsonify({"detail": "Database operation failed. Please try again later."}), 500
 
     # Action 3: Serialize output using to_dict() model representation
     return jsonify(rec.to_dict()), 200

@@ -12,16 +12,35 @@ from backend.models import db, User
 rate_limit_store = defaultdict(list)
 
 def rate_limit(limit: int = 5, period: int = 60) -> Callable:
-    """Decorator to enforce sliding-window rate limiting on Flask endpoints by client IP."""
+    """Decorator to enforce sliding-window rate limiting on Flask endpoints by client IP.
+    
+    Includes memory cleanup logic and secure proxy-aware IP parsing.
+    """
     def decorator(f: Callable) -> Callable:
         @wraps(f)
         def decorated(*args: Any, **kwargs: Any) -> Any:
-            ip: str = request.remote_addr or '127.0.0.1'
+            # Secure proxy-aware IP retrieval (extracting the client's actual remote IP)
+            forwarded = request.headers.getlist("X-Forwarded-For")
+            if forwarded:
+                ip: str = forwarded[0].split(',')[0].strip()
+            else:
+                ip = request.remote_addr or '127.0.0.1'
+                
             now: float = time.time()
-            # Clean up old timestamps
+            
+            # Clean up old timestamps for the current client IP
             rate_limit_store[ip] = [t for t in rate_limit_store[ip] if now - t < period]
+            
+            # Action: Active memory pruning mechanism for the in-memory dictionary
+            if len(rate_limit_store) > 1000:
+                expired_ips = [k for k, v in rate_limit_store.items() if not v or now - v[-1] >= period]
+                for k in expired_ips:
+                    rate_limit_store.pop(k, None)
+                    
             if len(rate_limit_store[ip]) >= limit:
+                current_app.logger.warning(f"Rate limit exceeded for client IP: {ip} requesting {request.path}")
                 return jsonify({"detail": "Too many requests. Please try again later."}), 429
+                
             rate_limit_store[ip].append(now)
             return f(*args, **kwargs)
         return decorated
@@ -116,7 +135,8 @@ def register() -> Response:
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        return jsonify({"detail": f"Database error: {str(e)}"}), 500
+        current_app.logger.error(f"Registration database error: {str(e)}", exc_info=True)
+        return jsonify({"detail": "A database error occurred. Please try again later."}), 500
 
     token: str = generate_token(new_user.id)
     # Action 3: Serialize user record output using the model's to_dict() method

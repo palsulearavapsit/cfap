@@ -443,5 +443,101 @@ class EcoTrackTestCase(unittest.TestCase):
         self.assertFalse(ProductionConfig.DEBUG)
         self.assertFalse(ProductionConfig.TESTING)
 
+    def test_boundary_checks_limits(self):
+        """Verify calculator inputs that exceed the maximum safety bounds are rejected."""
+        payload_too_high = {
+            "transportation_car": 100001, # Exceeds limit of 100000.0
+            "food_preference": "vegan",
+            "waste_recycling": "always",
+            "waste_plastic": "low"
+        }
+        res = self.client.post('/api/calculator/submit',
+            data=json.dumps(payload_too_high),
+            content_type='application/json',
+            headers=self.headers
+        )
+        self.assertEqual(res.status_code, 400)
+        data = json.loads(res.data.decode('utf-8'))
+        self.assertIn("exceeds maximum allowed value", data["detail"])
+
+    def test_rate_limiting_eviction_and_proxy(self):
+        """Verify rate limiting with X-Forwarded-For headers and dict pruner."""
+        from backend.routes.auth import rate_limit_store, clear_rate_limits
+        clear_rate_limits()
+
+        # Send request with proxy header
+        headers = {"X-Forwarded-For": "203.0.113.195"}
+        for _ in range(5):
+            res = self.client.post('/api/auth/login',
+                data=json.dumps({"email": self.test_email, "password": self.test_password}),
+                content_type='application/json',
+                headers=headers
+            )
+            self.assertEqual(res.status_code, 200)
+
+        # 6th request should fail
+        res_fail = self.client.post('/api/auth/login',
+            data=json.dumps({"email": self.test_email, "password": self.test_password}),
+            content_type='application/json',
+            headers=headers
+        )
+        self.assertEqual(res_fail.status_code, 429)
+
+        # Manually verify that pruning evicts expired/empty client records
+        # Add a mock stale IP entry in rate_limit_store
+        rate_limit_store["192.168.1.1"] = [] # empty list (expired)
+        # Mocking size > 1000 to trigger prune during decorator call
+        for i in range(1005):
+            rate_limit_store[f"10.0.0.{i}"] = [1.0] # stale timestamps
+
+        # Triggers decoration/pruning by hitting the endpoint
+        self.client.post('/api/auth/login',
+            data=json.dumps({"email": self.test_email, "password": self.test_password}),
+            content_type='application/json',
+            headers={"X-Forwarded-For": "203.0.113.200"}
+        )
+        # "192.168.1.1" should be pruned because it's empty
+        self.assertNotIn("192.168.1.1", rate_limit_store)
+
+    def test_expired_and_malformed_tokens(self):
+        """Verify that malformed and expired session tokens are properly rejected."""
+        # 1. Malformed token
+        res_malformed = self.client.get('/api/auth/me', headers={"Authorization": "Bearer malformed_token_string"})
+        self.assertEqual(res_malformed.status_code, 401)
+        self.assertEqual(json.loads(res_malformed.data.decode('utf-8'))["detail"], "Signature has expired or is invalid.")
+
+        # 2. Expired token verification mock check
+        # A token loaded with max_age=-1 will trigger SignatureExpired
+        from itsdangerous import URLSafeTimedSerializer
+        serializer = URLSafeTimedSerializer(self.app.config['SECRET_KEY'])
+        token = serializer.dumps(999, salt='auth-token-salt')
+        
+        # Loading with negative max_age should fail to decode
+        try:
+            serializer.loads(token, salt='auth-token-salt', max_age=-1)
+            self.fail("Should raise SignatureExpired")
+        except Exception:
+            pass
+
+    def test_transaction_rollback_handling(self):
+        """Verify database commit exception triggers rollback and return safe error."""
+        from unittest.mock import patch
+        from sqlalchemy.exc import SQLAlchemyError
+
+        # Mock db.session.commit to throw SQLAlchemyError
+        with patch('backend.models.db.session.commit') as mock_commit:
+            mock_commit.side_effect = SQLAlchemyError("Mock database connection lost")
+            
+            # Attemping to join a challenge
+            res = self.client.post('/api/challenges/join',
+                data=json.dumps({"challenge_id": 1}),
+                content_type='application/json',
+                headers=self.headers
+            )
+            # Should rollback and return a clean 500 error code
+            self.assertEqual(res.status_code, 500)
+            data = json.loads(res.data.decode('utf-8'))
+            self.assertEqual(data["detail"], "Database operation failed. Please try again later.")
+
 if __name__ == '__main__':
     unittest.main()

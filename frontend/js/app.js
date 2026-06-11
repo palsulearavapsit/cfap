@@ -224,6 +224,12 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.navCalculator.removeAttribute('aria-current');
     elements.navChallenges.removeAttribute('aria-current');
 
+    // Accessibility route transition announcement
+    const announcer = document.getElementById('route-announcer');
+    if (announcer) {
+      announcer.textContent = `Navigated to ${viewName.charAt(0).toUpperCase() + viewName.slice(1)} view`;
+    }
+
     if (viewName === 'dashboard') {
       elements.navDashboard.classList.add('active');
       elements.navDashboard.setAttribute('aria-current', 'page');
@@ -300,6 +306,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     } catch (err) {
       showNotification('Failed to fetch dashboard metrics.', 'error');
+    }
+  }
+
+  async function updateHistoryChart() {
+    try {
+      const history = await API.get(`/api/analytics/history?filter=${state.historyFilter}`);
+      renderHistoryChart(history.trends);
+      // Accessibility: Announce timeline chart update
+      const announcer = document.getElementById('route-announcer');
+      if (announcer) {
+        announcer.textContent = `Emissions history chart updated to display ${state.historyFilter === 'ytd' ? 'Year-to-Date' : state.historyFilter + ' filter'} data`;
+      }
+    } catch (err) {
+      showNotification('Failed to fetch historical carbon data.', 'error');
     }
   }
 
@@ -1073,7 +1093,7 @@ document.addEventListener('DOMContentLoaded', () => {
       elements.filterButtons.forEach(b => b.classList.remove('active'));
       e.currentTarget.classList.add('active');
       state.historyFilter = e.currentTarget.dataset.filter;
-      loadDashboard();
+      updateHistoryChart();
     });
   });
 
