@@ -5,6 +5,7 @@ from sqlalchemy.orm import joinedload
 from backend.models import db, Challenge, ChallengeProgress
 from backend.routes.auth import login_required
 from backend.utils import send_response
+from backend.constants import CHALLENGE_DURATION_DAYS, DEFAULT_CHALLENGE_DURATION_DAYS
 from typing import Any, List
 
 logger = logging.getLogger("ecotrack.challenges")
@@ -83,7 +84,9 @@ def join_challenge() -> Response:
         return send_response({"detail": "You are already participating in this challenge"}, 400)
 
     start_date: datetime = datetime.utcnow()
-    end_date: datetime = start_date + timedelta(days=7) # Standard challenge length of 7 days
+    # Use dynamic duration based on difficulty level (Item 17)
+    duration_days: int = CHALLENGE_DURATION_DAYS.get(challenge.difficulty, DEFAULT_CHALLENGE_DURATION_DAYS)
+    end_date: datetime = start_date + timedelta(days=duration_days)
 
     new_progress = ChallengeProgress(
         user_id=user.id,

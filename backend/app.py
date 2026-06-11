@@ -1,9 +1,26 @@
 import os
 import logging
-from flask import Flask, request, jsonify, Response
+from datetime import datetime
+from flask import Flask, request, Response
 from flask_cors import CORS
 from backend.models import db, Challenge
+from backend.utils import send_response, register_sqlalchemy_event_logger
+from backend.constants import VALID_PROFILES
 from typing import Any, Optional
+
+def register_blueprints(app: Flask) -> None:
+    """Helper method registering all Flask blueprints with /api url_prefix namespaces (Item 13)."""
+    from backend.routes.calculator import calculator_bp
+    from backend.routes.challenges import challenges_bp
+    from backend.routes.analytics import analytics_bp
+    from backend.routes.recommendations import recommendations_bp
+    from backend.routes.auth import auth_bp
+
+    app.register_blueprint(calculator_bp, url_prefix='/api/calculator')
+    app.register_blueprint(challenges_bp, url_prefix='/api/challenges')
+    app.register_blueprint(analytics_bp, url_prefix='/api/analytics')
+    app.register_blueprint(recommendations_bp, url_prefix='/api/recommendations')
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
 
 def create_app(config_class: Optional[Any] = None) -> Flask:
     """Application factory for EcoTrack AI Flask web application."""
@@ -20,11 +37,19 @@ def create_app(config_class: Optional[Any] = None) -> Flask:
     app = Flask(__name__, static_folder="../frontend", static_url_path="")
     app.config.from_object(config_class)
 
-    # Action 1: Standardized Centralized Logger configuration
+    # Configure rotating file logging handler for production profiles (Item 3, 54)
     logging.basicConfig(
         level=logging.INFO,
         format='[%(asctime)s] %(levelname)s in %(module)s: %(message)s'
     )
+    if not app.debug and not app.testing:
+        from logging.handlers import RotatingFileHandler
+        file_handler = RotatingFileHandler('ecotrack.log', maxBytes=1024*1024, backupCount=5)
+        file_formatter = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]')
+        file_handler.setFormatter(file_formatter)
+        file_handler.setLevel(logging.INFO)
+        app.logger.addHandler(file_handler)
+        
     app.logger.info("Initializing EcoTrack AI Web Application Factory...")
 
     # Configure CORS for specific local development origins only
@@ -44,6 +69,7 @@ def create_app(config_class: Optional[Any] = None) -> Flask:
             def set_sqlite_pragma(dbapi_connection, connection_record):
                 cursor = dbapi_connection.cursor()
                 cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.execute("PRAGMA journal_mode=WAL")
                 cursor.close()
 
     # Generate a cryptographically secure fallback secret key if unset
@@ -56,35 +82,61 @@ def create_app(config_class: Optional[Any] = None) -> Flask:
     migrate = Migrate()
     migrate.init_app(app, db)
 
-    # Register blueprints with /api prefix to match frontend paths
-    from backend.routes.calculator import calculator_bp
-    from backend.routes.challenges import challenges_bp
-    from backend.routes.analytics import analytics_bp
-    from backend.routes.recommendations import recommendations_bp
-    from backend.routes.auth import auth_bp
+    # Register SQLAlchemy query event logger in debug mode (Item 6)
+    register_sqlalchemy_event_logger(app, db)
 
-    app.register_blueprint(calculator_bp, url_prefix='/api/calculator')
-    app.register_blueprint(challenges_bp, url_prefix='/api/challenges')
-    app.register_blueprint(analytics_bp, url_prefix='/api/analytics')
-    app.register_blueprint(recommendations_bp, url_prefix='/api/recommendations')
-    app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    # Profile mismatch warning check (Item 19)
+    env_profile = os.getenv("FLASK_ENV", "development")
+    if env_profile not in VALID_PROFILES:
+        app.logger.warning(f"FLASK_ENV='{env_profile}' is not a recognized profile. Expected one of: {VALID_PROFILES}")
+
+    # Register blueprints using helper pattern
+    register_blueprints(app)
 
     # Serve index.html at root
     @app.route('/')
     def serve_index() -> Response:
         return app.send_static_file('index.html')
 
+    @app.route('/api/health', methods=['GET'])
+    def health_check() -> Response:
+        """Endpoint validating server dynamic health and database connection integrity."""
+        health_status = {
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "services": {
+                "database": "unknown"
+            }
+        }
+        try:
+            from sqlalchemy import text
+            db.session.execute(text("SELECT 1"))
+            health_status["services"]["database"] = "healthy"
+            status_code = 200
+        except Exception as err:
+            app.logger.error(f"Health check failed database check: {str(err)}")
+            health_status["status"] = "unhealthy"
+            health_status["services"]["database"] = "unhealthy"
+            health_status["error"] = "Database connection failed"
+            status_code = 500
+        
+        return send_response(health_status, status_code)
+
     # Global handler for JSON validation and custom ValidationError exceptions
     from werkzeug.exceptions import BadRequest
-    from backend.exceptions import ValidationError
+    from backend.exceptions import ValidationError, AppException
 
     @app.errorhandler(BadRequest)
     def handle_bad_request(e: BadRequest) -> Response:
-        return jsonify({"detail": "Malformed request body. Please provide a valid JSON payload."}), 400
+        return send_response({"detail": "Malformed request body. Please provide a valid JSON payload."}, 400)
+
+    @app.errorhandler(AppException)
+    def handle_app_exception(e: AppException) -> Response:
+        return send_response({"detail": e.message}, e.status_code)
 
     @app.errorhandler(ValidationError)
     def handle_validation_error(e: ValidationError) -> Response:
-        return jsonify({"detail": e.message}), e.status_code
+        return send_response({"detail": e.message}, e.status_code)
 
     # Catch-all route to serve index.html for SPA client-side routing
     @app.errorhandler(404)
@@ -92,18 +144,53 @@ def create_app(config_class: Optional[Any] = None) -> Flask:
         # Check if the requested path starts with /api
         # If it does, return a JSON 404, not the HTML index
         if request.path.startswith('/api'):
-            return jsonify({"detail": "Not found"}), 404
+            return send_response({"detail": "Not found"}, 404)
         return app.send_static_file('index.html')
 
-    # Action 5: Global Request CSRF Validation Hook
+    # Action 5: Global Request Security Middleware Hook
     @app.before_request
-    def validate_csrf() -> Optional[Response]:
-        """Intercepts writing state-changing API endpoints, validating secure custom header."""
+    def before_request_middleware() -> Optional[Response]:
+        """Intercepts incoming API requests to enforce CSRF validation, parameter pollution checks, content-type checks, and JSON bomb depth limits."""
+        # 1. Parameter Pollution Check (Item 23)
+        if request.args:
+            for key in request.args.keys():
+                if len(request.args.getlist(key)) > 1:
+                    return send_response({"detail": f"Duplicate query parameter '{key}' detected"}, 400)
+
+        # 2. State-changing request checks
         if request.method in ["POST", "PUT", "PATCH", "DELETE"]:
-            if request.path.startswith('/api') and not app.config.get('TESTING'):
-                if request.headers.get('X-Requested-With') != 'XMLHttpRequest':
-                    app.logger.warning(f"Rejected state-changing request to {request.path} due to missing secure CSRF header.")
-                    return jsonify({"detail": "CSRF validation failed. Missing secure header."}), 403
+            if request.path.startswith('/api'):
+                # Content Type Enforcement (Item 39)
+                if request.method in ["POST", "PUT", "PATCH"]:
+                    content_type = request.headers.get('Content-Type', '')
+                    if 'application/json' not in content_type:
+                        return send_response({"detail": "Content-Type must be application/json"}, 415)
+
+                # CSRF validation header check (Item 30)
+                if not app.config.get('TESTING') and request.headers.get('X-Requested-With') != 'XMLHttpRequest':
+                    # Support double-submit CSRF header matching
+                    csrf_cookie = request.cookies.get('csrf_token')
+                    csrf_header = request.headers.get('X-CSRF-Token')
+                    if not csrf_cookie or csrf_cookie != csrf_header:
+                        app.logger.warning(f"Rejected state-changing request to {request.path} due to missing secure CSRF header.")
+                        return send_response({"detail": "CSRF validation failed. Missing secure header."}, 403)
+
+                # JSON-Bomb Max Depth Check (Item 25)
+                if request.is_json:
+                    try:
+                        raw_data = request.get_json(silent=True)
+                        if raw_data:
+                            def get_depth(d):
+                                if isinstance(d, dict):
+                                    return 1 + (max(get_depth(v) for v in d.values()) if d else 0)
+                                if isinstance(d, list):
+                                    return 1 + (max(get_depth(v) for v in d) if d else 0)
+                                return 1
+                            if get_depth(raw_data) > 5:
+                                return send_response({"detail": "JSON body exceeds maximum allowable depth limits."}, 400)
+                    except Exception:
+                        pass
+                        
         return None
 
     # Action 4: Global Response Security Headers Hook
@@ -112,7 +199,7 @@ def create_app(config_class: Optional[Any] = None) -> Flask:
         """Injects recommended secure HTTP response headers to harden the application."""
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'DENY'
-        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['X-XSS-Protection'] = '0'
         response.headers['Content-Security-Policy'] = (
             "default-src 'self'; "
             "script-src 'self' cdn.jsdelivr.net; "
@@ -121,10 +208,12 @@ def create_app(config_class: Optional[Any] = None) -> Flask:
             "img-src 'self' data:; "
             "connect-src 'self'"
         )
-        response.headers['Referrer-Policy'] = 'no-referrer-when-downgrade'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
         response.headers['X-Permitted-Cross-Domain-Policies'] = 'none'
         response.headers['Cross-Origin-Opener-Policy'] = 'same-origin'
         response.headers['Cross-Origin-Embedder-Policy'] = 'require-corp'
+        response.headers['Permissions-Policy'] = 'geolocation=(), camera=(), microphone=()'
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
 
         # Static assets cache headers to maximize performance (Item 28)
         if request.path.startswith('/css/') or request.path.startswith('/js/') or request.path.endswith('.html'):
@@ -166,6 +255,7 @@ def create_app(config_class: Optional[Any] = None) -> Flask:
     def db_backup() -> None:
         """Backup all user carbon footprint history to a JSON file using streaming write optimizations."""
         import json
+        import hashlib
         from datetime import datetime
         from backend.models import User, CarbonEntry, ChallengeProgress, Recommendation
         
@@ -269,7 +359,19 @@ def create_app(config_class: Optional[Any] = None) -> Flask:
                 f.write("  ]\n")
                 
                 f.write("}\n")
+            
+            # Secure backup: Generate SHA-256 checksum for integrity verification (Item 20)
+            sha256 = hashlib.sha256()
+            with open(backup_file, "rb") as bf:
+                for chunk in iter(lambda: bf.read(8192), b""):
+                    sha256.update(chunk)
+            checksum = sha256.hexdigest()
+            checksum_file = backup_file + ".sha256"
+            with open(checksum_file, "w") as cf:
+                cf.write(f"{checksum}  {os.path.basename(backup_file)}\n")
+            
             app.logger.info(f"Database backed up successfully to: {backup_file}")
+            app.logger.info(f"Backup SHA-256 checksum stored at: {checksum_file}")
         except Exception as err:
             app.logger.error(f"Failed to stream database backup: {str(err)}", exc_info=True)
 

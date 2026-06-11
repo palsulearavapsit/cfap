@@ -1,11 +1,33 @@
 import os
 import json
+import re
 import google.generativeai as genai
+from abc import ABC, abstractmethod
 from backend.constants import (
     CAR_FACTOR, FLIGHT_FACTOR, ELECTRICITY_FACTOR, AC_KW,
     CLOTHING_FACTOR, ELECTRONICS_FACTOR
 )
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+
+class BaseAIService(ABC):
+    """Abstract interface defining the AI recommendation generation structure."""
+    
+    @abstractmethod
+    def generate_recommendations(self, data: dict) -> List[Dict[str, Any]]:
+        """Generates 3 personalized recommendations based on footprint variables."""
+        pass
+
+
+_api_configured_cache: Optional[bool] = None
+
+def is_gemini_configured() -> bool:
+    """Checks and caches whether the Gemini API key is properly configured on the server (Item 52)."""
+    global _api_configured_cache
+    if _api_configured_cache is None:
+        api_key = os.getenv("GEMINI_API_KEY")
+        _api_configured_cache = bool(api_key and api_key != "YOUR_GEMINI_API_KEY")
+    return _api_configured_cache
+
 
 def get_fallback_recommendations(data: dict) -> List[Dict[str, Any]]:
     """Generates standard rules-based carbon footprint recommendations as fallback."""
@@ -144,92 +166,96 @@ def get_fallback_recommendations(data: dict) -> List[Dict[str, Any]]:
             "estimated_savings": 50.0
         })
 
-    return recommendations[:3]  # Return top 3 recommendations
+    return recommendations[:3]
+
+
+class GeminiAIService(BaseAIService):
+    """Implementation of BaseAIService using Google Gemini model API."""
+
+    def generate_recommendations(self, data: dict) -> List[Dict[str, Any]]:
+        """Generates 3 personalized recommendations using the Gemini API based on lifestyle survey."""
+        if not is_gemini_configured():
+            return get_fallback_recommendations(data)
+
+        try:
+            genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+            model = genai.GenerativeModel("gemini-2.5-flash")
+            
+            prompt: str = f"""
+            You are an expert environmental consultant and sustainability advisor.
+            Analyze the following monthly lifestyle and carbon footprint parameters for a user and suggest exactly 3 highly personalized, concrete, actionable recommendations to reduce their footprint and save money.
+
+            LIFESTYLE METRICS:
+            - Transportation:
+                * Car travel distance: {data.get('transportation_car', 0)} km/month
+                * Bicycle distance: {data.get('transportation_bike', 0)} km/month
+                * Public transit distance: {data.get('transportation_public', 0)} km/month
+                * Flights distance: {data.get('transportation_flights', 0)} km/month
+            - Home Energy & Diet:
+                * Electricity usage: {data.get('energy_electricity', 0)} kWh/month
+                * Air Conditioner usage: {data.get('energy_ac', 0)} hours/month
+                * Major appliances usage: {data.get('energy_appliance', 0)} hours/month
+                * Diet preference: {data.get('food_preference', 'non-vegetarian')}
+            - Shopping & Waste habits:
+                * New clothes purchased: {data.get('shopping_clothing', 0)} items/month
+                * New electronics purchased: {data.get('shopping_electronics', 0)} devices/month
+                * Recycling frequency: {data.get('waste_recycling', 'sometimes')}
+                * Single-use plastic usage: {data.get('waste_plastic', 'average')}
+
+            Return your advice as a strictly formatted JSON array of objects. Do not write any markdown code blocks, do not wrap it in ```json ... ```, and do not append conversational text.
+            
+            JSON Structure Example:
+            [
+              {{
+                "title": "Upgrade to Smart Power Strips",
+                "description": "Configure smart strips for home media and office setup. These eliminate phantom load draws from idle TVs and electronics, saving energy.",
+                "difficulty": "Beginner",
+                "expected_reduction": 15.5,
+                "estimated_savings": 12.0
+              }}
+            ]
+            
+            Fields details:
+            - "difficulty": String, must be exactly one of: "Beginner", "Intermediate", "Advanced", "Expert"
+            - "expected_reduction": Float, estimated CO2 reduction in kg/month
+            - "estimated_savings": Float, estimated monthly savings in USD
+            """
+
+            response = model.generate_content(prompt)
+            text: str = response.text.strip()
+            
+            if "```" in text:
+                match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', text)
+                if match:
+                    text = match.group(1).strip()
+                else:
+                    text = text.replace("```json", "").replace("```", "").strip()
+
+            parsed_json: list = json.loads(text)
+            if isinstance(parsed_json, list) and len(parsed_json) > 0:
+                normalized: List[Dict[str, Any]] = []
+                for rec in parsed_json[:3]:
+                    difficulty: str = rec.get("difficulty", "Beginner")
+                    if difficulty not in ["Beginner", "Intermediate", "Advanced", "Expert"]:
+                        difficulty = "Beginner"
+                    
+                    normalized.append({
+                        "title": str(rec.get("title", "Reduce Energy Consumption")),
+                        "description": str(rec.get("description", "Lower utility waste by turning off unused electronics.")),
+                        "difficulty": difficulty,
+                        "expected_reduction": float(rec.get("expected_reduction", 10.0)),
+                        "estimated_savings": float(rec.get("estimated_savings", 5.0))
+                    })
+                return normalized
+
+        except Exception as e:
+            # Fall back safely
+            pass
+            
+        return get_fallback_recommendations(data)
 
 
 def generate_recommendations_gemini(data: dict) -> List[Dict[str, Any]]:
-    """Generates 3 personalized recommendations using the Gemini API based on surveys."""
-    api_key: Optional[str] = os.getenv("GEMINI_API_KEY")
-    if not api_key or api_key == "YOUR_GEMINI_API_KEY":
-        print("[WARNING] Gemini API Key not configured. Using rule-based fallback recommendations.")
-        return get_fallback_recommendations(data)
-
-    try:
-        genai.configure(api_key=api_key)
-        # Using the standard modern flash model
-        model = genai.GenerativeModel("gemini-2.5-flash")
-        
-        prompt: str = f"""
-        You are an expert environmental consultant and sustainability advisor.
-        Analyze the following monthly lifestyle and carbon footprint parameters for a user and suggest exactly 3 highly personalized, concrete, actionable recommendations to reduce their footprint and save money.
-
-        LIFESTYLE METRICS:
-        - Transportation:
-            * Car travel distance: {data.get('transportation_car', 0)} km/month
-            * Bicycle distance: {data.get('transportation_bike', 0)} km/month
-            * Public transit distance: {data.get('transportation_public', 0)} km/month
-            * Flights distance: {data.get('transportation_flights', 0)} km/month
-        - Home Energy & Diet:
-            * Electricity usage: {data.get('energy_electricity', 0)} kWh/month
-            * Air Conditioner usage: {data.get('energy_ac', 0)} hours/month
-            * Major appliances usage: {data.get('energy_appliance', 0)} hours/month
-            * Diet preference: {data.get('food_preference', 'non-vegetarian')}
-        - Shopping & Waste habits:
-            * New clothes purchased: {data.get('shopping_clothing', 0)} items/month
-            * New electronics purchased: {data.get('shopping_electronics', 0)} devices/month
-            * Recycling frequency: {data.get('waste_recycling', 'sometimes')}
-            * Single-use plastic usage: {data.get('waste_plastic', 'average')}
-
-        Return your advice as a strictly formatted JSON array of objects. Do not write any markdown code blocks, do not wrap it in ```json ... ```, and do not append conversational text.
-        
-        JSON Structure Example:
-        [
-          {{
-            "title": "Upgrade to Smart Power Strips",
-            "description": "Configure smart strips for home media and office setup. These eliminate phantom load draws from idle TVs and electronics, saving energy.",
-            "difficulty": "Beginner",
-            "expected_reduction": 15.5,
-            "estimated_savings": 12.0
-          }}
-        ]
-        
-        Fields details:
-        - "difficulty": String, must be exactly one of: "Beginner", "Intermediate", "Advanced", "Expert"
-        - "expected_reduction": Float, estimated CO2 reduction in kg/month
-        - "estimated_savings": Float, estimated monthly savings in USD
-        """
-
-        response = model.generate_content(prompt)
-        text: str = response.text.strip()
-        
-        # Extract the JSON content inside markdown code blocks robustly and efficiently
-        if "```" in text:
-            import re
-            match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', text)
-            if match:
-                text = match.group(1).strip()
-            else:
-                text = text.replace("```json", "").replace("```", "").strip()
-
-        parsed_json: list = json.loads(text)
-        if isinstance(parsed_json, list) and len(parsed_json) > 0:
-            # Normalize key names and types to ensure robust compatibility
-            normalized: List[Dict[str, Any]] = []
-            for rec in parsed_json[:3]:
-                difficulty: str = rec.get("difficulty", "Beginner")
-                if difficulty not in ["Beginner", "Intermediate", "Advanced", "Expert"]:
-                    difficulty = "Beginner"
-                
-                normalized.append({
-                    "title": str(rec.get("title", "Reduce Energy Consumption")),
-                    "description": str(rec.get("description", "Lower utility waste by turning off unused electronics.")),
-                    "difficulty": difficulty,
-                    "expected_reduction": float(rec.get("expected_reduction", 10.0)),
-                    "estimated_savings": float(rec.get("estimated_savings", 5.0))
-                })
-            return normalized
-
-    except Exception as e:
-        print(f"[ERROR] Gemini API call failed: {e}. Falling back to rule-based recommendations.")
-        
-    return get_fallback_recommendations(data)
+    """Helper wrapper function to resolve recommendations, maintaining backward-compatibility."""
+    service = GeminiAIService()
+    return service.generate_recommendations(data)

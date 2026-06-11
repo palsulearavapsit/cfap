@@ -1,4 +1,5 @@
 from flask import Blueprint, request, Response
+from sqlalchemy.orm import joinedload
 from backend.models import CarbonEntry, Recommendation, ChallengeProgress
 from backend.routes.auth import login_required
 from backend.utils import send_response
@@ -12,8 +13,13 @@ def get_summary() -> Response:
     """Returns a carbon footprint summary, category breakdown, and sustainability score."""
     user = request.current_user # type: ignore
     
-    # Query carbon entries desc (limit to 2 most recent for summary metrics)
-    entries: List[CarbonEntry] = CarbonEntry.query.filter_by(user_id=user.id).order_by(CarbonEntry.created_at.desc()).limit(2).all()
+    # Query carbon entries desc with eager loading of user relationship (Item 41)
+    entries: List[CarbonEntry] = (CarbonEntry.query
+                                  .filter_by(user_id=user.id)
+                                  .options(joinedload(CarbonEntry.user))
+                                  .order_by(CarbonEntry.created_at.desc())
+                                  .limit(2)
+                                  .all())
     
     if not entries:
         return send_response({

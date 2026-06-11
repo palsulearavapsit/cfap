@@ -1506,3 +1506,184 @@ a:focus-visible {
   left: 0.5rem;
   top: -0.2rem;
 }
+
+/* ============================================================ */
+/* PHASE 5: ACCESSIBILITY ENHANCEMENTS (Items 82-100)          */
+/* ============================================================ */
+
+/* Item 85: Interactive Element Minimum Hit Targets (44x44px WCAG AA) */
+button,
+a,
+select,
+[role="button"],
+.nav-btn,
+.btn,
+.filter-btn,
+.modal-close-btn,
+.theme-toggle-btn {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Item 86: High Contrast Focus Indicators (3:1 ratio minimum) */
+:focus-visible {
+  outline: 3px solid hsl(48, 100%, 67%) !important;
+  outline-offset: 4px !important;
+  border-radius: 3px;
+}
+
+/* Remove default outline for mouse users, preserve for keyboard */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Item 86: Additional high-contrast focus for dark backgrounds */
+.glass-panel :focus-visible,
+.modal-card :focus-visible {
+  outline-color: hsl(160, 84%, 65%) !important;
+  box-shadow: 0 0 0 3px hsla(160, 84%, 39%, 0.35);
+}
+
+/* Item 87: Keyboard navigation tooltip styles */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]:focus-visible::after,
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: hsl(222, 47%, 15%);
+  color: var(--text-primary);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  white-space: nowrap;
+  border: 1px solid var(--panel-border);
+  z-index: 200;
+  pointer-events: none;
+}
+
+/* Item 89: Interactive Form Input Association — visible error state */
+.input-group input[aria-invalid="true"],
+.input-group select[aria-invalid="true"],
+.input-group textarea[aria-invalid="true"] {
+  border-color: var(--red) !important;
+  /* Color + icon to avoid color-only indication (Item 99) */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ef4444' stroke-width='2'%3E%3Ccircle cx='12' cy='12' r='10'%3E%3C/circle%3E%3Cline x1='12' y1='8' x2='12' y2='12'%3E%3C/line%3E%3Cline x1='12' y1='16' x2='12.01' y2='16'%3E%3C/line%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+  padding-right: 40px;
+}
+
+/* Item 90: Aria-Describedby validation details — visible error message */
+.field-error-msg {
+  display: block;
+  color: var(--red);
+  font-size: 0.78rem;
+  margin-top: 4px;
+  /* Use ⚠ icon to avoid color-only indication */
+}
+
+.field-error-msg::before {
+  content: "⚠ ";
+  font-size: 0.85em;
+}
+
+/* Item 92: Screen reader hidden decorative elements */
+[aria-hidden="true"] {
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Item 93: Progress Bar Visual Landmark — visible progress text */
+[role="progressbar"]::after {
+  content: attr(aria-valuenow) "%";
+  position: absolute;
+  right: 8px;
+  font-size: 0.65rem;
+  color: white;
+  font-weight: 600;
+  line-height: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* Item 95: High Contrast Media Query Support */
+@media (forced-colors: active) {
+  .btn-primary,
+  .badge-num,
+  .level-badge,
+  .trend-badge {
+    forced-color-adjust: none;
+    border: 2px solid ButtonText;
+  }
+
+  .metric-progress-bar,
+  .level-progress-fill {
+    forced-color-adjust: none;
+    background: Highlight !important;
+  }
+
+  :focus-visible {
+    outline: 3px solid Highlight !important;
+  }
+}
+
+/* Item 96: Dynamic Theme Announcement visible indicator */
+[aria-pressed="true"].theme-toggle-btn {
+  background: hsla(38, 92%, 50%, 0.15);
+  border-color: var(--amber);
+}
+
+/* Item 99: Color-Independent Alert Messaging — status variants with icons */
+.alert-success {
+  border-left: 4px solid var(--primary);
+  padding-left: 12px;
+}
+
+.alert-success::before {
+  content: "✓ ";
+  color: var(--primary);
+  font-weight: bold;
+}
+
+.alert-error {
+  border-left: 4px solid var(--red);
+  padding-left: 12px;
+}
+
+.alert-error::before {
+  content: "✕ ";
+  color: var(--red);
+  font-weight: bold;
+}
+
+.alert-warning {
+  border-left: 4px solid var(--amber);
+  padding-left: 12px;
+}
+
+.alert-warning::before {
+  content: "⚠ ";
+  color: var(--amber);
+  font-weight: bold;
+}
+
+/* Item 100: aria-modal overlay pointer-events management */
+.modal-backdrop[aria-modal="true"]:not(.hidden) {
+  isolation: isolate;
+}
+
+.modal-backdrop[aria-modal="true"].hidden ~ * {
+  /* Elements outside open modal should be inert */
+}
+
+/* Keyboard focus trap visual indicator when modal is active */
+body.modal-open .modal-backdrop:not(.hidden) .modal-card {
+  box-shadow: 0 0 0 3px hsla(160, 84%, 39%, 0.4), 0 25px 50px -12px rgba(0,0,0,0.75);
+}

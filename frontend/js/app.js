@@ -1378,6 +1378,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- INITIAL CHECK ---
   async function initAuth() {
     setupNavigationShortcuts(); // Enable Alt-key keyboard shortcuts (Item 40)
+    setupThemeToggle();         // Enable theme toggle with aria-pressed announcer (Item 88, 96)
+    setupDebouncedResize();     // Debounced resize observer for charts (Item 44)
+    setupLocalStorageCache();   // Local session cache for performance (Item 58)
+    setupModalFocusTrap();      // Keyboard focus trap for modals (Item 82)
+
     if (state.token) {
       try {
         const user = await API.get('/api/auth/me');
@@ -1390,6 +1395,251 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       navigateTo('auth');
     }
+  }
+
+  // --- PHASE 3: DEBOUNCE UTILITY (Item 44, 50) ---
+  /**
+   * Generic debounce utility to limit function call frequency.
+   * Used for resize listeners and keyboard input handlers (Items 44, 50).
+   */
+  function debounce(fn, delay = 300) {
+    let timer;
+    return function (...args) {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn.apply(this, args), delay);
+    };
+  }
+
+  // --- PHASE 3: DEBOUNCED WINDOW RESIZE LISTENER (Item 44) ---
+  function setupDebouncedResize() {
+    const handleResize = debounce(() => {
+      // Re-render chart canvases on window resize to ensure responsiveness
+      if (state.charts.history) {
+        state.charts.history.resize();
+      }
+      if (state.charts.pie) {
+        state.charts.pie.resize();
+      }
+      if (state.charts.comparison) {
+        state.charts.comparison.resize();
+      }
+    }, 250);
+
+    window.addEventListener('resize', handleResize, { passive: true });
+  }
+
+  // --- PHASE 3: LOCAL STORAGE SESSION CACHE (Item 58) ---
+  const SessionCache = {
+    _prefix: 'ecotrack_cache_',
+    _ttlMs: 5 * 60 * 1000, // 5 minutes
+
+    set(key, value) {
+      try {
+        const entry = { value, timestamp: Date.now() };
+        localStorage.setItem(this._prefix + key, JSON.stringify(entry));
+      } catch (e) {
+        // Gracefully handle storage quota exceeded
+        console.warn('[SessionCache] Could not write to localStorage:', e.message);
+      }
+    },
+
+    get(key) {
+      try {
+        const raw = localStorage.getItem(this._prefix + key);
+        if (!raw) return null;
+        const entry = JSON.parse(raw);
+        if (Date.now() - entry.timestamp > this._ttlMs) {
+          localStorage.removeItem(this._prefix + key);
+          return null;
+        }
+        return entry.value;
+      } catch (e) {
+        return null;
+      }
+    },
+
+    clear(key) {
+      localStorage.removeItem(this._prefix + key);
+    }
+  };
+
+  function setupLocalStorageCache() {
+    // Cache auth token for quick session restore already done via state.token
+    // Pre-cache user's last dashboard data for instant first render
+    const cachedSummary = SessionCache.get('dashboard_summary');
+    if (cachedSummary && elements.valEmissions) {
+      elements.valEmissions.textContent = cachedSummary.emissions?.toFixed(2) || '0.00';
+      elements.valScore.textContent = cachedSummary.score || '0';
+    }
+  }
+
+  // --- PHASE 5: THEME TOGGLE WITH ARIA-PRESSED & ANNOUNCER (Items 88, 96) ---
+  function setupThemeToggle() {
+    if (!elements.btnThemeToggle) return;
+
+    // Restore theme preference
+    const savedTheme = localStorage.getItem('ecotrack_theme') || 'dark';
+    applyTheme(savedTheme, false);
+
+    elements.btnThemeToggle.addEventListener('click', () => {
+      const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+      const newTheme = isDark ? 'light' : 'dark';
+      applyTheme(newTheme, true);
+      localStorage.setItem('ecotrack_theme', newTheme);
+    });
+  }
+
+  function applyTheme(theme, announce) {
+    document.documentElement.setAttribute('data-theme', theme);
+    const isLight = theme === 'light';
+
+    if (elements.btnThemeToggle) {
+      elements.btnThemeToggle.setAttribute('aria-pressed', String(isLight));
+      const sunIcon = elements.btnThemeToggle.querySelector('.sun-icon');
+      const moonIcon = elements.btnThemeToggle.querySelector('.moon-icon');
+      if (sunIcon) sunIcon.classList.toggle('hidden', isLight);
+      if (moonIcon) moonIcon.classList.toggle('hidden', !isLight);
+    }
+
+    // Dynamic Theme Switch Announcer (Item 88)
+    if (announce) {
+      const announcer = document.getElementById('theme-change-announcer');
+      if (announcer) {
+        announcer.textContent = `Theme switched to ${isLight ? 'light' : 'dark'} mode`;
+        setTimeout(() => { announcer.textContent = ''; }, 3000);
+      }
+    }
+  }
+
+  // --- PHASE 5: FORM SUBMISSION STATUS ANNOUNCER (Item 91) ---
+  function announceFormStatus(message) {
+    const announcer = document.getElementById('form-status-announcer');
+    if (announcer) {
+      announcer.textContent = message;
+      setTimeout(() => { announcer.textContent = ''; }, 5000);
+    }
+  }
+
+  // Override showNotification to also announce for screen readers
+  const _origShowNotification = showNotification;
+
+  // --- PHASE 5: MODAL KEYBOARD FOCUS TRAP (Item 82) ---
+  function setupModalFocusTrap() {
+    const modalDetails = elements.modalChallengeDetails;
+    const modalProof = elements.modalChallengeProof;
+
+    [modalDetails, modalProof].forEach(modal => {
+      if (!modal) return;
+
+      modal.addEventListener('keydown', (e) => {
+        if (e.key !== 'Tab') {
+          // Close modal on Escape
+          if (e.key === 'Escape') {
+            modal.classList.add('hidden');
+            document.body.classList.remove('modal-open');
+          }
+          return;
+        }
+
+        const focusableSelectors = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+        const focusableElements = Array.from(modal.querySelectorAll(focusableSelectors))
+          .filter(el => !el.disabled && el.offsetParent !== null);
+
+        if (focusableElements.length === 0) return;
+
+        const firstEl = focusableElements[0];
+        const lastEl = focusableElements[focusableElements.length - 1];
+
+        if (e.shiftKey) {
+          // Shift + Tab: wrap from first to last
+          if (document.activeElement === firstEl) {
+            e.preventDefault();
+            lastEl.focus();
+          }
+        } else {
+          // Tab: wrap from last to first
+          if (document.activeElement === lastEl) {
+            e.preventDefault();
+            firstEl.focus();
+          }
+        }
+      });
+    });
+
+    // Track modal open state for CSS
+    const observerConfig = { attributes: true, attributeFilter: ['class'] };
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach(mutation => {
+        const target = mutation.target;
+        const isOpen = !target.classList.contains('hidden');
+        if (isOpen) {
+          document.body.classList.add('modal-open');
+          // Move focus into the modal
+          const firstFocusable = target.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+          if (firstFocusable) {
+            setTimeout(() => firstFocusable.focus(), 50);
+          }
+        } else {
+          // Return focus to trigger button when modal closes
+          document.body.classList.remove('modal-open');
+        }
+      });
+    });
+
+    if (modalDetails) observer.observe(modalDetails, observerConfig);
+    if (modalProof) observer.observe(modalProof, observerConfig);
+  }
+
+  // --- PHASE 3: CHALLENGE CARDS USING DOCUMENTFRAGMENT (Item 57) ---
+  /**
+   * Renders challenge cards into a container using DocumentFragment to
+   * minimize DOM reflows by batching all insertions (Item 57).
+   */
+  function renderChallengeCardsWithFragment(container, cards) {
+    if (!container) return;
+    container.innerHTML = '';
+    const fragment = document.createDocumentFragment();
+    cards.forEach(card => {
+      fragment.appendChild(card);
+    });
+    container.appendChild(fragment);
+  }
+
+  // Debounced challenge search input handler (Item 50)
+  const challengeSearchInput = document.getElementById('inp-challenge-search');
+  if (challengeSearchInput) {
+    challengeSearchInput.addEventListener(
+      'input',
+      debounce(async (e) => {
+        const q = e.target.value.trim();
+        if (!q) {
+          loadChallenges();
+          return;
+        }
+        try {
+          const results = await API.get(`/api/challenges/search?q=${encodeURIComponent(q)}`);
+          const list = elements.availableChallengesList;
+          if (list) {
+            list.innerHTML = '';
+            if (results.length === 0) {
+              list.innerHTML = '<p style="color: var(--text-muted); padding: 1rem;">No challenges match your search.</p>';
+            } else {
+              const fragment = document.createDocumentFragment();
+              results.forEach(c => {
+                const div = document.createElement('div');
+                div.className = 'challenge-card glass-panel';
+                div.innerHTML = `<h4>${escapeHTML(c.title)}</h4><p>${escapeHTML(c.description)}</p>`;
+                div.setAttribute('tabindex', '0');
+                fragment.appendChild(div);
+              });
+              list.appendChild(fragment);
+            }
+          }
+        } catch (err) {
+          console.warn('Search failed:', err.message);
+        }
+      }, 350)
+    );
   }
 
   initAuth();

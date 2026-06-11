@@ -11,6 +11,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   
+  <!-- CSS Asset Preloading (Item 56) -->
+  <link rel="preload" href="/css/style.css" as="style">
+  <link rel="preload" href="/js/app.js" as="script">
+  
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   
@@ -22,47 +26,52 @@
 </head>
 <body>
 
-  <!-- Route Announcer for Accessibility -->
+  <!-- Route Announcer for Accessibility (Item 84) -->
   <div id="route-announcer" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
 
-  <!-- Screen Reader Skip Link -->
+  <!-- Form submission status announcer (Item 91) -->
+  <div id="form-status-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Screen Reader Skip Link (Item 83) -->
   <a href="#main-content" class="skip-link">Skip to main content</a>
 
-  <!-- Header & Navigation (Always shown since no login/signup required) -->
+  <!-- Header & Navigation -->
   <header id="app-header">
     <nav class="navbar" aria-label="Main Navigation">
       <div class="nav-brand">
-        <div class="brand-icon">
+        <div class="brand-icon" aria-hidden="true">
           <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="leaf-icon"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 3.5 0 8.5C17 15 15 18 11 20z"></path><path d="M19 2c-2.26 4.33-5.27 7.14-8 10"></path></svg>
         </div>
         <h1 class="brand-name">EcoTrack AI</h1>
       </div>
 
-      <div class="nav-links">
-        <button id="nav-dashboard" class="nav-btn active" aria-current="page" data-view="dashboard" type="button">
+      <div class="nav-links" role="menubar">
+        <button id="nav-dashboard" class="nav-btn active" aria-current="page" role="menuitem" data-view="dashboard" type="button">
           <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-icon"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
-          Dashboard
+          <span>Dashboard</span>
         </button>
-        <button id="nav-calculator" class="nav-btn" data-view="calculator" type="button">
+        <button id="nav-calculator" class="nav-btn" role="menuitem" data-view="calculator" type="button">
           <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-icon"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="9" y1="22" x2="9" y2="16"></line><line x1="15" y1="22" x2="15" y2="16"></line><line x1="9" y1="16" x2="15" y2="16"></line><path d="M16 8h-8V6h8v2z"></path></svg>
-          Calculator
+          <span>Calculator</span>
         </button>
-        <button id="nav-challenges" class="nav-btn" data-view="challenges" type="button">
+        <button id="nav-challenges" class="nav-btn" role="menuitem" data-view="challenges" type="button">
           <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-icon"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.45 1-1 1H4v2h16v-2h-5c-.55 0-1-.45-1-1v-2.34"></path><path d="M12 2a6 6 0 0 1 6 6v3.76a6 6 0 0 1-3.64 5.5l-2.36 1-2.36-1A6 6 0 0 1 6 11.76V8a6 6 0 0 1 6-6z"></path></svg>
-          Challenges
+          <span>Challenges</span>
         </button>
       </div>
 
       <div class="nav-profile">
-        <button id="btn-theme-toggle" class="theme-toggle-btn" aria-label="Toggle light/dark theme" type="button">
+        <!-- Dynamic Theme Switch Announcer (Item 88) -->
+        <div id="theme-change-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+        <button id="btn-theme-toggle" class="theme-toggle-btn" aria-label="Toggle light/dark theme" aria-pressed="false" type="button">
           <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="sun-icon"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
           <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="moon-icon hidden"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
         </button>
         <div id="nav-level-badge-container" class="hidden" style="display: inline-flex; align-items: center; margin-right: 0.25rem;">
-          <span id="user-level-badge" class="level-badge">Lvl 1</span>
+          <span id="user-level-badge" class="level-badge" aria-label="User level indicator">Lvl 1</span>
         </div>
-        <span id="user-email-display" class="user-badge">Eco Citizen</span>
-        <button id="btn-logout" class="logout-btn hidden" aria-label="Sign Out" type="button">
+        <span id="user-email-display" class="user-badge" aria-label="Currently signed in user">Eco Citizen</span>
+        <button id="btn-logout" class="logout-btn hidden" aria-label="Sign Out of EcoTrack AI" type="button">
           <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-icon"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
           Sign Out
         </button>
@@ -93,35 +102,41 @@
     <section id="view-auth" class="auth-section view">
       <div class="auth-card glass-panel">
         <div class="auth-header">
-          <div class="auth-icon-wrap">
+          <div class="auth-icon-wrap" aria-hidden="true">
             <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="leaf-icon"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 3.5 0 8.5C17 15 15 18 11 20z"></path><path d="M19 2c-2.26 4.33-5.27 7.14-8 10"></path></svg>
           </div>
           <h2 id="auth-title">Welcome back</h2>
           <p id="auth-subtitle">Sign in to your EcoTrack AI account to continue.</p>
         </div>
 
-        <form id="form-auth" class="auth-form">
+        <form id="form-auth" class="auth-form" aria-label="Authentication form" novalidate>
           <div class="input-group">
             <label for="inp-auth-email">Email address</label>
-            <input type="email" id="inp-auth-email" required placeholder="name@example.com">
+            <input type="email" id="inp-auth-email" required placeholder="name@example.com"
+              aria-describedby="inp-auth-email-hint" autocomplete="email">
+            <span id="inp-auth-email-hint" class="sr-only">Enter your registered email address</span>
           </div>
           <div class="input-group">
             <label for="inp-auth-password">Password</label>
-            <input type="password" id="inp-auth-password" required placeholder="••••••••" minlength="6">
+            <input type="password" id="inp-auth-password" required placeholder="••••••••" minlength="6"
+              aria-describedby="inp-auth-password-hint" autocomplete="current-password">
+            <span id="inp-auth-password-hint" class="sr-only">Password must be between 6 and 72 characters</span>
           </div>
+          <!-- Color-independent validation indicator (Item 99) -->
+          <div id="auth-error-msg" class="sr-only" role="alert" aria-live="assertive"></div>
           <button type="submit" id="btn-auth-submit" class="btn btn-primary btn-block">Sign In</button>
         </form>
 
         <div class="auth-switch">
           <span id="auth-switch-text">Don't have an account?</span>
-          <a href="#" id="link-auth-switch">Create account</a>
+          <a href="#" id="link-auth-switch" aria-label="Switch to create account form">Create account</a>
         </div>
       </div>
     </section>
 
     <!-- 2. AUTHENTICATED VIEW: DASHBOARD -->
     <section id="view-dashboard" class="dashboard-section view hidden">
-      <!-- Empty Dashboard View (No entries yet) -->
+      <!-- Empty Dashboard View -->
       <div id="dashboard-empty" class="dashboard-empty-card glass-panel text-center hidden">
         <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="empty-icon"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
         <h2>Welcome to EcoTrack AI!</h2>
@@ -142,50 +157,63 @@
             <span>Share Progress</span>
           </button>
         </div>
-        <!-- 3 Metric Cards at Top -->
-        <div class="metric-row">
-          <div class="metric-card glass-panel">
-            <div class="metric-header">
-              <h3>Current Monthly Emissions</h3>
-              <div class="metric-icon green-icon">
-                <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+          <!-- 3 Metric Cards at Top -->
+          <div class="metric-row" role="region" aria-label="Key environmental metrics">
+            <div class="metric-card glass-panel" role="region" aria-label="Carbon Emissions Metric">
+              <div class="metric-header">
+                <h3>Current Monthly Emissions</h3>
+                <div class="metric-icon green-icon" aria-hidden="true">
+                  <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                </div>
+              </div>
+              <div class="metric-value" aria-live="polite" aria-atomic="true"><span id="val-emissions">0.00</span> kg
+                <span class="sr-only"> CO2 equivalent this month</span>
+              </div>
+              <div class="metric-footer">
+                <span id="val-prev-emissions">Previous: 0.00 kg</span>
+                <span id="val-pct-change" class="trend-badge">0%</span>
               </div>
             </div>
-            <div class="metric-value" aria-live="polite" aria-atomic="true"><span id="val-emissions">0.00</span> kg</div>
-            <div class="metric-footer">
-              <span id="val-prev-emissions">Previous: 0.00 kg</span>
-              <span id="val-pct-change" class="trend-badge">0%</span>
-            </div>
-          </div>
 
-          <div class="metric-card glass-panel">
-            <div class="metric-header">
-              <h3>Sustainability Score</h3>
-              <div class="metric-icon amber-icon">
-                <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+            <div class="metric-card glass-panel" role="region" aria-label="Sustainability Score Metric">
+              <div class="metric-header">
+                <h3>Sustainability Score</h3>
+                <div class="metric-icon amber-icon" aria-hidden="true">
+                  <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                </div>
+              </div>
+              <div class="metric-value" aria-live="polite" aria-atomic="true"><span id="val-score">0</span> / 100
+                <span class="sr-only"> out of 100 sustainability score</span>
+              </div>
+              <div class="metric-progress-container">
+                <!-- Progress Bar with aria roles (Item 93) -->
+                <div id="val-score-bar" class="metric-progress-bar"
+                  role="progressbar"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                  aria-valuenow="0"
+                  aria-label="Sustainability score progress bar">
+                </div>
               </div>
             </div>
-            <div class="metric-value" aria-live="polite" aria-atomic="true"><span id="val-score">0</span> / 100</div>
-            <div class="metric-progress-container">
-              <div id="val-score-bar" class="metric-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
-            </div>
-          </div>
 
-          <div class="metric-card glass-panel">
-            <div class="metric-header">
-              <h3>Projected Annual Emissions</h3>
-              <div class="metric-icon blue-icon">
-                <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+            <div class="metric-card glass-panel" role="region" aria-label="Annual Projection Metric">
+              <div class="metric-header">
+                <h3>Projected Annual Emissions</h3>
+                <div class="metric-icon blue-icon" aria-hidden="true">
+                  <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                </div>
               </div>
+              <div class="metric-value" aria-live="polite" aria-atomic="true"><span id="val-annual">0</span> kg
+                <span class="sr-only"> CO2 equivalent projected annually</span>
+              </div>
+              <div class="metric-footer text-muted">Calculated from latest entry</div>
             </div>
-            <div class="metric-value" aria-live="polite" aria-atomic="true"><span id="val-annual">0</span> kg</div>
-            <div class="metric-footer text-muted">Calculated from latest entry</div>
           </div>
-        </div>
 
         <!-- Row with Charts -->
         <div class="chart-row">
-          <div class="chart-card glass-panel double-chart">
+          <div class="chart-card glass-panel double-chart" role="region" aria-label="Emission History Graph">
             <div class="chart-header flex-between">
               <div>
                 <h3>Emission History</h3>
@@ -203,7 +231,7 @@
             </div>
           </div>
 
-          <div class="chart-card glass-panel">
+          <div class="chart-card glass-panel" role="region" aria-label="Category Distribution Graph">
             <div class="chart-header">
               <h3>Category Breakdown</h3>
               <p>Percentage distribution of emissions</p>
@@ -217,7 +245,7 @@
 
         <!-- Comparison Chart Row -->
         <div class="chart-row margin-top-md">
-          <div class="chart-card glass-panel full-width-chart">
+          <div class="chart-card glass-panel full-width-chart" role="region" aria-label="Benchmark Comparisons Graph">
             <div class="chart-header">
               <h3>National & Global Comparison</h3>
               <p>Your latest monthly emissions compared to benchmarks (in kg CO₂)</p>
@@ -230,7 +258,7 @@
         </div>
 
         <!-- AI Recommendations Section -->
-        <div class="recommendations-section glass-panel">
+        <div class="recommendations-section glass-panel" role="region" aria-label="AI Recommendations Dashboard">
           <div class="section-header">
             <div>
               <h3 class="flex-center gap-2">
@@ -258,7 +286,7 @@
         </div>
 
         <!-- Progress Steps -->
-        <div class="wizard-steps-row">
+        <div class="wizard-steps-row" role="progressbar" aria-valuemin="1" aria-valuemax="3" aria-valuenow="1" aria-label="Calculator wizard progress steps">
           <div class="step-indicator active" data-step="1">1</div>
           <div class="step-line"></div>
           <div class="step-indicator" data-step="2">2</div>
@@ -271,7 +299,7 @@
           <!-- STEP 1: TRANSPORTATION -->
           <div class="calc-step-view" data-step="1">
             <div class="step-title-wrap">
-              <div class="step-icon-wrap"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg></div>
+              <div class="step-icon-wrap" aria-hidden="true"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg></div>
               <h3>Transportation</h3>
             </div>
             <div class="inputs-grid">
@@ -293,7 +321,7 @@
               </div>
             </div>
             <div class="wizard-buttons">
-              <div></div> <!-- empty spacer -->
+              <div></div>
               <button type="button" class="btn btn-primary next-step-btn">Continue &rarr;</button>
             </div>
           </div>
@@ -301,7 +329,7 @@
           <!-- STEP 2: ENERGY & DIET -->
           <div class="calc-step-view hidden" data-step="2">
             <div class="step-title-wrap">
-              <div class="step-icon-wrap"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg></div>
+              <div class="step-icon-wrap" aria-hidden="true"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg></div>
               <h3>Energy & Diet</h3>
             </div>
             <div class="inputs-grid">
@@ -335,7 +363,7 @@
           <!-- STEP 3: HABITS & SHOPPING -->
           <div class="calc-step-view hidden" data-step="3">
             <div class="step-title-wrap">
-              <div class="step-icon-wrap"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg></div>
+              <div class="step-icon-wrap" aria-hidden="true"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg></div>
               <h3>Habits & Shopping</h3>
             </div>
             <div class="inputs-grid">
@@ -375,8 +403,8 @@
       </div>
 
       <!-- Step 4 Result View -->
-      <div id="calc-result-panel" class="calc-wizard glass-panel text-center hidden">
-        <div class="success-icon-wrap">
+      <div id="calc-result-panel" class="calc-wizard glass-panel text-center hidden" role="region" aria-label="Calculation results complete details">
+        <div class="success-icon-wrap" aria-hidden="true">
           <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="success-icon"><polyline points="20 6 9 17 4 12"></polyline></svg>
         </div>
         <h2>Calculation Complete!</h2>
@@ -405,8 +433,8 @@
     <!-- 4. AUTHENTICATED VIEW: CHALLENGES -->
     <section id="view-challenges" class="challenges-section view hidden">
       <!-- Celeb banner -->
-      <div id="completion-celebration" class="celebration-toast hidden">
-        <div class="celeb-card">
+      <div id="completion-celebration" class="celebration-toast hidden" aria-live="assertive">
+        <div class="celeb-card" role="alert">
           <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="celeb-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
           <h3>Challenge Completed!</h3>
           <p>You earned <span id="celeb-points-earned">0</span> points!</p>
@@ -414,33 +442,42 @@
       </div>
 
       <!-- Challenges Header -->
-      <div class="challenges-header-card glass-panel">
-        <div>
-          <h2 class="flex-center gap-2">
-            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="trophy-icon"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.45 1-1 1H4v2h16v-2h-5c-.55 0-1-.45-1-1v-2.34"></path><path d="M12 2a6 6 0 0 1 6 6v3.76a6 6 0 0 1-3.64 5.5l-2.36 1-2.36-1A6 6 0 0 1 6 11.76V8a6 6 0 0 1 6-6z"></path></svg>
-            Sustainability Challenges
-          </h2>
-          <p>Build eco-friendly habits, join monthly challenges, and earn points for keeping your carbon emissions low.</p>
+      <div class="challenges-header-card glass-panel" style="display: flex; flex-direction: column; gap: 1rem; width: 100%;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+          <div>
+            <h2 class="flex-center gap-2">
+              <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="trophy-icon"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.45 1-1 1H4v2h16v-2h-5c-.55 0-1-.45-1-1v-2.34"></path><path d="M12 2a6 6 0 0 1 6 6v3.76a6 6 0 0 1-3.64 5.5l-2.36 1-2.36-1A6 6 0 0 1 6 11.76V8a6 6 0 0 1 6-6z"></path></svg>
+              Sustainability Challenges
+            </h2>
+            <p>Build eco-friendly habits, join monthly challenges, and earn points for keeping your carbon emissions low.</p>
+          </div>
+          <div class="points-summary">
+            <div class="points-badge">
+              <span class="badge-lbl">Total Reward Points</span>
+              <span id="user-total-points" class="badge-num">0 pts</span>
+            </div>
+            <!-- User Level & Progress Bar -->
+            <div class="level-progress-wrap">
+              <div class="level-progress-labels">
+                <span id="profile-level-label">Level 1 (Novice)</span>
+                <span id="profile-next-level-pts">0 / 100 pts</span>
+              </div>
+              <div class="level-progress-track">
+                <div id="profile-level-fill" class="level-progress-fill" role="progressbar" aria-label="Level completion progress scale"></div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="points-summary">
-          <div class="points-badge">
-            <span class="badge-lbl">Total Reward Points</span>
-            <span id="user-total-points" class="badge-num">0 pts</span>
-          </div>
-          <!-- User Level & Progress Bar (Item 49, 53) -->
-          <div class="level-progress-wrap">
-            <div class="level-progress-labels">
-              <span id="profile-level-label">Level 1 (Novice)</span>
-              <span id="profile-next-level-pts">0 / 100 pts</span>
-            </div>
-            <div class="level-progress-track">
-              <div id="profile-level-fill" class="level-progress-fill"></div>
-            </div>
-          </div>
+        
+        <!-- Interactive search bar with debouncer and screen reader annotations (Item 89, 90) -->
+        <div class="search-box-wrap" style="width: 100%; margin-top: 1rem;">
+          <label for="inp-challenge-search" class="sr-only">Search challenges by name, difficulty, or rules</label>
+          <input type="text" id="inp-challenge-search" placeholder="Search challenges by name, difficulty, or habits..." style="width: 100%; padding: 0.75rem 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--panel-border); background: rgba(255, 255, 255, 0.03); color: white;" aria-describedby="challenge-search-hint">
+          <span id="challenge-search-hint" class="sr-only">Search results update dynamically below.</span>
         </div>
       </div>
 
-      <!-- User Earned Badges Panel (Item 52) -->
+      <!-- User Earned Badges Panel -->
       <div class="challenges-header-card glass-panel margin-top-md" style="flex-direction: column; align-items: flex-start; gap: 1rem; width: 100%;">
         <h3>Your Achievement Badges</h3>
         <p style="font-size: 0.85rem; color: var(--text-secondary);">Unlock badges by completing environmental challenges and lowering emissions.</p>
@@ -483,47 +520,49 @@
     <p>&copy; 2026 EcoTrack AI Platform. Have a green day! 🌍</p>
   </footer>
 
-  <!-- Modals -->
-  <div id="modal-challenge-details" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-details-title">
+  <!-- Modal: Challenge Details (aria-modal for screen readers, Item 100) -->
+  <div id="modal-challenge-details" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-details-title" tabindex="-1">
     <div class="modal-card glass-panel">
       <div class="modal-header">
-        <h3 id="modal-details-title">Challenge Details</h3>
-        <button class="modal-close-btn" aria-label="Close modal" type="button">&times;</button>
+        <h2 id="modal-details-title">Challenge Details</h2>
+        <button class="modal-close-btn" aria-label="Close challenge details dialog" type="button" tabindex="0">&times;</button>
       </div>
       <div class="modal-body">
         <div class="modal-difficulty-row">
           <span id="modal-details-difficulty" class="difficulty-badge">Beginner</span>
           <span id="modal-details-points" class="challenge-pts">+50 pts</span>
         </div>
-        <p id="modal-details-description" class="modal-desc-text"></p>
+        <p id="modal-details-description" class="modal-desc-text" aria-describedby="modal-details-description"></p>
         <div id="modal-details-rules-wrap" class="modal-rules-section">
-          <h4>Steps & Habits:</h4>
-          <ul id="modal-details-rules-list"></ul>
+          <h3>Steps &amp; Habits:</h3>
+          <ul id="modal-details-rules-list" aria-label="Challenge rules and steps"></ul>
         </div>
       </div>
       <div class="modal-footer">
-        <button id="btn-modal-details-action" class="btn btn-primary" type="button"></button>
+        <button id="btn-modal-details-action" class="btn btn-primary" type="button" aria-label="Join or view this challenge"></button>
       </div>
     </div>
   </div>
 
-  <div id="modal-challenge-proof" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-proof-title">
+  <!-- Modal: Challenge Proof (aria-modal for screen readers, Item 100) -->
+  <div id="modal-challenge-proof" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-proof-title" tabindex="-1">
     <div class="modal-card glass-panel">
       <div class="modal-header">
-        <h3 id="modal-proof-title">Submit Completion Proof</h3>
-        <button class="modal-close-btn" aria-label="Close modal" type="button">&times;</button>
+        <h2 id="modal-proof-title">Submit Completion Proof</h2>
+        <button class="modal-close-btn" aria-label="Close proof submission dialog" type="button" tabindex="0">&times;</button>
       </div>
-      <form id="form-challenge-proof">
+      <form id="form-challenge-proof" aria-label="Proof submission form">
         <div class="modal-body">
           <p>Tell us how you completed this challenge. Share your habits or tracking notes!</p>
           <div class="input-group">
             <label for="inp-proof-text">Completion Note / Proof</label>
-            <textarea id="inp-proof-text" required placeholder="e.g. I carried my reusable water flask all day and refused plastic straws." rows="4" maxlength="1000"></textarea>
+            <textarea id="inp-proof-text" required placeholder="e.g. I carried my reusable water flask all day and refused plastic straws." rows="4" maxlength="1000" aria-describedby="proof-text-hint"></textarea>
+            <span id="proof-text-hint" class="sr-only">Maximum 1000 characters. HTML tags will be automatically stripped for security.</span>
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary btn-close-proof">Cancel</button>
-          <button type="submit" class="btn btn-primary">Submit & Earn Points</button>
+          <button type="button" class="btn btn-secondary btn-close-proof" aria-label="Cancel proof submission">Cancel</button>
+          <button type="submit" class="btn btn-primary" aria-label="Submit proof and earn challenge points">Submit &amp; Earn Points</button>
         </div>
       </form>
     </div>

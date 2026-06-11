@@ -45,3 +45,36 @@ LIMIT_AC_HOURS = 744.0
 LIMIT_APPLIANCE_HOURS = 744.0
 LIMIT_CLOTHING_ITEMS = 1000.0
 LIMIT_ELECTRONICS_DEVICES = 100.0
+
+# Centralized Error and Warning Messages (Item 12)
+ERROR_MALFORMED_JSON = "Malformed request body. Please provide a valid JSON payload."
+ERROR_DB_OPERATION = "Database operation failed. Please try again later."
+ERROR_UNAUTHORIZED = "Authentication credentials were not provided."
+ERROR_INVALID_TOKEN = "Signature has expired or is invalid."
+ERROR_INVALID_INPUTS = "Invalid input formats"
+ERROR_EMAIL_TAKEN = "Email address already registered"
+ERROR_LOCKOUT = "Too many failed login attempts. Account temporarily locked. Try again in 15 minutes."
+
+# Dynamic Challenge Duration Constraints (Item 17) — configurable durations per difficulty level
+CHALLENGE_DURATION_DAYS = {
+    "Beginner": 7,
+    "Intermediate": 14,
+    "Advanced": 21,
+    "Expert": 30,
+}
+DEFAULT_CHALLENGE_DURATION_DAYS = 7
+
+# Valid Environment Profile Names (Item 19) — used to detect profile mismatches
+VALID_PROFILES = ("development", "testing", "production")
+
+# Allowed HTTP Request Header Names for sanitization (Item 15)
+ALLOWED_HEADERS_WHITELIST = frozenset([
+    "authorization",
+    "content-type",
+    "x-requested-with",
+    "x-csrf-token",
+    "x-forwarded-for",
+    "accept",
+    "accept-language",
+    "cache-control",
+])

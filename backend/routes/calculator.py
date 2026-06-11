@@ -61,83 +61,27 @@ def submit_calculator() -> Response:
     user = request.current_user # type: ignore
     data: dict = request.get_json() or {}
 
-    # 1. Validate numeric inputs (Security/Robustness)
-    numeric_fields = [
-        "transportation_car", "transportation_bike", "transportation_public", "transportation_flights",
-        "energy_electricity", "energy_ac", "energy_appliance",
-        "shopping_clothing", "shopping_electronics"
-    ]
-    # Secure maximum bounds checking limits dictionary from centralized constants
-    limits = {
-        "transportation_car": LIMIT_CAR_KM,
-        "transportation_bike": LIMIT_BIKE_KM,
-        "transportation_public": LIMIT_PUBLIC_KM,
-        "transportation_flights": LIMIT_FLIGHT_KM,
-        "energy_electricity": LIMIT_ELECTRICITY,
-        "energy_ac": LIMIT_AC_HOURS,
-        "energy_appliance": LIMIT_APPLIANCE_HOURS,
-        "shopping_clothing": LIMIT_CLOTHING_ITEMS,
-        "shopping_electronics": LIMIT_ELECTRONICS_DEVICES
-    }
-    for field in numeric_fields:
-        val: Any = data.get(field)
-        if val is not None:
-            # Action 6: Enforce strict scalar type checking (reject boolean, list, dict)
-            if isinstance(val, (list, dict)) or type(val) is bool:
-                raise ValidationError(f"{field} must be a valid numeric value")
-            try:
-                float_val: float = float(val)
-                if float_val < 0:
-                    raise ValidationError(f"{field} must be a non-negative value")
-                max_limit: float = limits.get(field, 100000.0)
-                if float_val > max_limit:
-                    raise ValidationError(f"{field} exceeds maximum allowed value of {max_limit}")
-            except (ValueError, TypeError):
-                raise ValidationError(f"{field} must be a valid numeric value")
+    from backend.schemas import CalculatorInputSchema
+    validated_data = CalculatorInputSchema.validate(data)
 
-    # 2. Validate categorical inputs (Security/Robustness)
-    food_preference_raw: Any = data.get("food_preference", "non-vegetarian")
-    waste_recycling_raw: Any = data.get("waste_recycling", "sometimes")
-    waste_plastic_raw: Any = data.get("waste_plastic", "average")
-
-    if not isinstance(food_preference_raw, str) or not isinstance(waste_recycling_raw, str) or not isinstance(waste_plastic_raw, str):
-        raise ValidationError("Categorical inputs must be string types")
-
-    food_preference: str = str(food_preference_raw).lower()
-    if food_preference not in [e.value for e in DietPreference]:
-        raise ValidationError("Invalid food_preference option")
-
-    waste_recycling: str = str(waste_recycling_raw).lower()
-    if waste_recycling not in [e.value for e in RecyclingFrequency]:
-        raise ValidationError("Invalid waste_recycling option")
-
-    waste_plastic: str = str(waste_plastic_raw).lower()
-    if waste_plastic not in [e.value for e in PlasticWasteLevel]:
-        raise ValidationError("Invalid waste_plastic option")
-
-    # Update data dictionary with normalized strings to ensure consistency
-    data["food_preference"] = food_preference
-    data["waste_recycling"] = waste_recycling
-    data["waste_plastic"] = waste_plastic
-
-    total_emissions: float = calculate_emissions(data=data)
+    total_emissions: float = calculate_emissions(data=validated_data)
 
     try:
         # Save carbon entry to database
         new_entry = CarbonEntry(
             user_id=user.id,
-            transportation_car=float(data.get("transportation_car", 0)),
-            transportation_bike=float(data.get("transportation_bike", 0)),
-            transportation_public=float(data.get("transportation_public", 0)),
-            transportation_flights=float(data.get("transportation_flights", 0)),
-            energy_electricity=float(data.get("energy_electricity", 0)),
-            energy_ac=float(data.get("energy_ac", 0)),
-            energy_appliance=float(data.get("energy_appliance", 0)),
-            food_preference=food_preference,
-            shopping_clothing=float(data.get("shopping_clothing", 0)),
-            shopping_electronics=float(data.get("shopping_electronics", 0)),
-            waste_recycling=waste_recycling,
-            waste_plastic=waste_plastic,
+            transportation_car=validated_data["transportation_car"],
+            transportation_bike=validated_data["transportation_bike"],
+            transportation_public=validated_data["transportation_public"],
+            transportation_flights=validated_data["transportation_flights"],
+            energy_electricity=validated_data["energy_electricity"],
+            energy_ac=validated_data["energy_ac"],
+            energy_appliance=validated_data["energy_appliance"],
+            food_preference=validated_data["food_preference"],
+            shopping_clothing=validated_data["shopping_clothing"],
+            shopping_electronics=validated_data["shopping_electronics"],
+            waste_recycling=validated_data["waste_recycling"],
+            waste_plastic=validated_data["waste_plastic"],
             total_emissions=total_emissions
         )
         db.session.add(new_entry)
@@ -147,18 +91,18 @@ def submit_calculator() -> Response:
 
         # Action 7: Calculate footprint hash & check cached recommendations to optimize Gemini cost
         hash_data = {
-            "transportation_car": float(data.get("transportation_car", 0)),
-            "transportation_bike": float(data.get("transportation_bike", 0)),
-            "transportation_public": float(data.get("transportation_public", 0)),
-            "transportation_flights": float(data.get("transportation_flights", 0)),
-            "energy_electricity": float(data.get("energy_electricity", 0)),
-            "energy_ac": float(data.get("energy_ac", 0)),
-            "energy_appliance": float(data.get("energy_appliance", 0)),
-            "food_preference": food_preference,
-            "shopping_clothing": float(data.get("shopping_clothing", 0)),
-            "shopping_electronics": float(data.get("shopping_electronics", 0)),
-            "waste_recycling": waste_recycling,
-            "waste_plastic": waste_plastic
+            "transportation_car": validated_data["transportation_car"],
+            "transportation_bike": validated_data["transportation_bike"],
+            "transportation_public": validated_data["transportation_public"],
+            "transportation_flights": validated_data["transportation_flights"],
+            "energy_electricity": validated_data["energy_electricity"],
+            "energy_ac": validated_data["energy_ac"],
+            "energy_appliance": validated_data["energy_appliance"],
+            "food_preference": validated_data["food_preference"],
+            "shopping_clothing": validated_data["shopping_clothing"],
+            "shopping_electronics": validated_data["shopping_electronics"],
+            "waste_recycling": validated_data["waste_recycling"],
+            "waste_plastic": validated_data["waste_plastic"]
         }
         hash_str: str = json.dumps(hash_data, sort_keys=True)
         footprint_hash: str = hashlib.sha256(hash_str.encode('utf-8')).hexdigest()
@@ -168,7 +112,7 @@ def submit_calculator() -> Response:
         if cached_rec_record:
             recommendations_list = json.loads(cached_rec_record.recommendations_json)
         else:
-            recommendations_list = generate_recommendations_gemini(data)
+            recommendations_list = generate_recommendations_gemini(validated_data)
             # Save new suggestions block to cache
             new_cache = RecommendationCache(
                 footprint_hash=footprint_hash,

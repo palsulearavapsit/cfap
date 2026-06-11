@@ -5,6 +5,7 @@ import time
 import re
 import bcrypt
 import logging
+import hashlib
 from typing import Callable, Any, Optional
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 from backend.models import db, User
@@ -15,11 +16,11 @@ logger = logging.getLogger("ecotrack.auth")
 # In-memory rate limiter: IP -> list of timestamps of requests
 rate_limit_store = defaultdict(list)
 
+# In-memory login failures store: IP -> list of timestamps of failed logins (Item 24)
+failed_login_store = defaultdict(list)
+
 def rate_limit(limit: int = 5, period: int = 60) -> Callable:
-    """Decorator to enforce sliding-window rate limiting on Flask endpoints by client IP.
-    
-    Includes memory cleanup logic and secure proxy-aware IP parsing.
-    """
+    """Decorator to enforce sliding-window rate limiting on Flask endpoints by client IP."""
     def decorator(f: Callable) -> Callable:
         @wraps(f)
         def decorated(*args: Any, **kwargs: Any) -> Any:
@@ -53,15 +54,22 @@ def rate_limit(limit: int = 5, period: int = 60) -> Callable:
 def clear_rate_limits() -> None:
     """Resets all stored client rate limits."""
     rate_limit_store.clear()
+    failed_login_store.clear()
 
 def generate_token(user_id: int) -> str:
-    """Generates a timed cryptographic signature for session verification."""
-    serializer = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
+    """Generates a timed cryptographic signature for session verification using SHA-256 (Item 21)."""
+    serializer = URLSafeTimedSerializer(
+        current_app.config['SECRET_KEY'],
+        signer_kwargs={"digest_method": hashlib.sha256}
+    )
     return str(serializer.dumps(user_id, salt='auth-token-salt'))
 
 def verify_token(token: str) -> Optional[int]:
-    """Decodes and validates a timed token, returning the user_id if valid."""
-    serializer = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
+    """Decodes and validates a timed token, returning the user_id if valid (Item 21)."""
+    serializer = URLSafeTimedSerializer(
+        current_app.config['SECRET_KEY'],
+        signer_kwargs={"digest_method": hashlib.sha256}
+    )
     try:
         # Token valid for 24 hours (86400 seconds)
         user_id = serializer.loads(token, salt='auth-token-salt', max_age=86400)
@@ -143,21 +151,43 @@ def register() -> Response:
         return send_response({"detail": "A database error occurred. Please try again later."}, 500)
 
     token: str = generate_token(new_user.id)
-    # Action 3: Serialize user record output using the model's to_dict() method
-    return send_response({
+    
+    # Set secure session cookie with HttpOnly, Secure, and SameSite=Lax (Item 36)
+    response = send_response({
         "token": token,
         "user": new_user.to_dict()
     }, 201)
+    response.set_cookie(
+        'auth_token',
+        token,
+        httponly=True,
+        secure=not current_app.debug,
+        samesite='Lax',
+        max_age=86400
+    )
+    return response
 
 @auth_bp.route('/login', methods=['POST'])
 @rate_limit(limit=5, period=60)
 def login() -> Response:
-    """Handles existing user authentication check, validating session credentials."""
+    """Handles existing user authentication check, validating session credentials and lockout checks (Item 24)."""
+    # Get remote client IP safely
+    forwarded = request.headers.getlist("X-Forwarded-For")
+    ip = forwarded[0].split(',')[0].strip() if forwarded else (request.remote_addr or '127.0.0.1')
+    
+    now = time.time()
+    # Clean up old failed attempts (> 15 minutes old)
+    failed_login_store[ip] = [t for t in failed_login_store[ip] if now - t < 900]
+    
+    # Enforce brute-force login lockout limits (Item 24)
+    if len(failed_login_store[ip]) >= 5:
+        logger.warning(f"Blocking login attempt from {ip} due to lockout.")
+        return send_response({"detail": "Too many failed login attempts. Account temporarily locked. Try again in 15 minutes."}, 403)
+
     data: dict = request.get_json() or {}
     raw_email: Any = data.get('email', '')
     raw_password: Any = data.get('password', '')
 
-    # Action 6: Enforce strict string input types to block parameter-coercion bugs
     if not isinstance(raw_email, str) or not isinstance(raw_password, str):
         return send_response({"detail": "Invalid input formats"}, 400)
 
@@ -168,10 +198,12 @@ def login() -> Response:
         return send_response({"detail": "Email and password are required"}, 400)
 
     if len(email) > 255 or len(password) > 72:
+        failed_login_store[ip].append(now)
         return send_response({"detail": "Invalid email or password"}, 401)
 
     user = User.query.filter_by(email=email).first()
     if not user:
+        failed_login_store[ip].append(now)
         return send_response({"detail": "Invalid email or password"}, 401)
 
     try:
@@ -180,21 +212,34 @@ def login() -> Response:
         is_valid = False
 
     if not is_valid:
+        failed_login_store[ip].append(now)
         return send_response({"detail": "Invalid email or password"}, 401)
 
+    # Success: Clear failure attempts record (Item 24)
+    failed_login_store.pop(ip, None)
+
     token: str = generate_token(user.id)
-    # Action 3: Serialize user record output using the model's to_dict() method
-    return send_response({
+    
+    # Set secure session cookie with HttpOnly, Secure, and SameSite=Lax (Item 36, 33)
+    response = send_response({
         "token": token,
         "user": user.to_dict()
     }, 200)
+    response.set_cookie(
+        'auth_token',
+        token,
+        httponly=True,
+        secure=not current_app.debug,
+        samesite='Lax',
+        max_age=86400
+    )
+    return response
 
 @auth_bp.route('/me', methods=['GET'])
 @login_required
 def me() -> Response:
     """Returns current active user session profile serialized data."""
     user = request.current_user # type: ignore
-    # Action 3: Serialize user record output using the model's to_dict() method
     return send_response(user.to_dict(), 200)
 
 @auth_bp.route('/logout', methods=['POST'])
@@ -203,4 +248,6 @@ def logout() -> Response:
     """Logs out the user, clearing auth cookies and session storage."""
     response = send_response({"detail": "Logged out successfully."}, 200)
     response.headers['Clear-Site-Data'] = '"cookies", "storage"'
+    # Clear auth cookie
+    response.delete_cookie('auth_token')
     return response
