@@ -4,6 +4,35 @@ EcoTrack AI is a premium, full-stack application designed to help individuals ca
 
 ---
 
+## 🎯 Challenge Submission Details
+
+### 1. Chosen Vertical
+*   **Vertical**: Sustainability & Climate Action (Personal Carbon Footprint Tracker & AI Recommendations Engine).
+*   **Problem Statement**: Empowering individuals to take control of their environmental impact through accurate, automated carbon footprint calculations, interactive behavioral challenges (gamification), and intelligent, tailored recommendations.
+
+### 2. Approach and Logic
+*   **Architecture**: Built using a modern, clean Flask REST API backend paired with a dynamic, state-based Vanilla HTML/CSS/JS frontend router.
+*   **Core Logic**:
+    *   *Emissions Calculation*: Utilizes standard, verified conversion constants for transportation, energy, food, shopping, and waste.
+    *   *AI Recommendation Engine*: Leverages Google Gemini (`gemini-2.5-flash`) to analyze user metrics dynamically and generate contextual, highly tailored action plans.
+    *   *Smart Fallback*: Implements a rules-based fallback engine that ensures continuous operation of recommendations even if API access is unconfigured or rate-limited.
+    *   *Gamification*: Encourages behavioral change via tracking challenges that support active enrollment, modal rules, and verified text proof submission.
+    *   *Database Design*: Implements composite indexes (`idx_progress_lookup`) and foreign key indexing on SQLite and PostgreSQL profiles to optimize search performance.
+    *   *Rate-Limiting & Security*: Secures public endpoints using Bcrypt hashing, secure timelimit serialization (`itsdangerous`), and sliding-window rate limiters.
+
+### 3. How the Solution Works
+1.  **Onboarding**: Users sign up and log in securely. Password validation and unique constraints are handled at the DB level.
+2.  **Assessment**: The interactive footprint wizard collects monthly habits across 5 key verticals with client-side focus traps and validation checks.
+3.  **Visualization**: The analytics dashboard uses inline SVG and Canvas components to map carbon history over customizable time horizons (`3m`, `6m`, `ytd`) and compares usage against national averages.
+4.  **Action Plan**: Recommendations are dynamically loaded (cached using query parameter hashes to reduce API load) and challenges are accepted to track progress.
+
+### 4. Assumptions Made
+*   Carbon emission calculation metrics represent approximate monthly averages (e.g. 0.2 kg CO2 per km traveled by car, 0.4 kg CO2 per kWh of electricity).
+*   European standard monthly average is set to 1,300 kg CO2, and the global target average is set to 350 kg CO2.
+*   Security session tokens are valid for up to 24 hours.
+
+---
+
 ## 🏗️ Technical Stack & Architecture
 
 ### Frontend
