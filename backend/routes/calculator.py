@@ -1,20 +1,29 @@
-from flask import Blueprint, request, jsonify, Response
+from flask import Blueprint, request, Response
 import hashlib
 import json
+import logging
 from backend.models import db, CarbonEntry, Recommendation, RecommendationCache
 from backend.routes.auth import login_required
 from backend.services.gemini_service import generate_recommendations_gemini
 from backend.constants import (
     CAR_FACTOR, BIKE_FACTOR, PUBLIC_FACTOR, FLIGHT_FACTOR,
     ELECTRICITY_FACTOR, AC_KW, APPLIANCE_KW, FOOD_FACTORS,
-    CLOTHING_FACTOR, ELECTRONICS_FACTOR, RECYCLING_FACTORS, PLASTIC_FACTORS
+    CLOTHING_FACTOR, ELECTRONICS_FACTOR, RECYCLING_FACTORS, PLASTIC_FACTORS,
+    LIMIT_CAR_KM, LIMIT_BIKE_KM, LIMIT_PUBLIC_KM, LIMIT_FLIGHT_KM,
+    LIMIT_ELECTRICITY, LIMIT_AC_HOURS, LIMIT_APPLIANCE_HOURS,
+    LIMIT_CLOTHING_ITEMS, LIMIT_ELECTRONICS_DEVICES
 )
+from backend.exceptions import ValidationError
+from backend.enums import DietPreference, RecyclingFrequency, PlasticWasteLevel
+from backend.utils import send_response
 from typing import Any
+
+logger = logging.getLogger("ecotrack.calculator")
 
 calculator_bp = Blueprint('calculator', __name__, url_prefix='/calculator')
 
-def calculate_emissions(data: dict) -> float:
-    """Calculates carbon emissions in kg CO2/month based on lifestyle data."""
+def calculate_emissions(*, data: dict) -> float:
+    """Calculates carbon emissions in kg CO2/month based on lifestyle data using keyword-only data."""
     # 1. Transportation
     transport_car: float = float(data.get("transportation_car", 0)) * CAR_FACTOR
     transport_bike: float = float(data.get("transportation_bike", 0)) * BIKE_FACTOR
@@ -58,33 +67,33 @@ def submit_calculator() -> Response:
         "energy_electricity", "energy_ac", "energy_appliance",
         "shopping_clothing", "shopping_electronics"
     ]
-    # Secure maximum bounds checking limits dictionary
+    # Secure maximum bounds checking limits dictionary from centralized constants
     limits = {
-        "transportation_car": 100000.0,
-        "transportation_bike": 10000.0,
-        "transportation_public": 100000.0,
-        "transportation_flights": 100000.0,
-        "energy_electricity": 50000.0,
-        "energy_ac": 744.0,
-        "energy_appliance": 744.0,
-        "shopping_clothing": 1000.0,
-        "shopping_electronics": 100.0
+        "transportation_car": LIMIT_CAR_KM,
+        "transportation_bike": LIMIT_BIKE_KM,
+        "transportation_public": LIMIT_PUBLIC_KM,
+        "transportation_flights": LIMIT_FLIGHT_KM,
+        "energy_electricity": LIMIT_ELECTRICITY,
+        "energy_ac": LIMIT_AC_HOURS,
+        "energy_appliance": LIMIT_APPLIANCE_HOURS,
+        "shopping_clothing": LIMIT_CLOTHING_ITEMS,
+        "shopping_electronics": LIMIT_ELECTRONICS_DEVICES
     }
     for field in numeric_fields:
         val: Any = data.get(field)
         if val is not None:
             # Action 6: Enforce strict scalar type checking (reject boolean, list, dict)
             if isinstance(val, (list, dict)) or type(val) is bool:
-                return jsonify({"detail": f"{field} must be a valid numeric value"}), 400
+                raise ValidationError(f"{field} must be a valid numeric value")
             try:
                 float_val: float = float(val)
                 if float_val < 0:
-                    return jsonify({"detail": f"{field} must be a non-negative value"}), 400
+                    raise ValidationError(f"{field} must be a non-negative value")
                 max_limit: float = limits.get(field, 100000.0)
                 if float_val > max_limit:
-                    return jsonify({"detail": f"{field} exceeds maximum allowed value of {max_limit}"}), 400
+                    raise ValidationError(f"{field} exceeds maximum allowed value of {max_limit}")
             except (ValueError, TypeError):
-                return jsonify({"detail": f"{field} must be a valid numeric value"}), 400
+                raise ValidationError(f"{field} must be a valid numeric value")
 
     # 2. Validate categorical inputs (Security/Robustness)
     food_preference_raw: Any = data.get("food_preference", "non-vegetarian")
@@ -92,26 +101,26 @@ def submit_calculator() -> Response:
     waste_plastic_raw: Any = data.get("waste_plastic", "average")
 
     if not isinstance(food_preference_raw, str) or not isinstance(waste_recycling_raw, str) or not isinstance(waste_plastic_raw, str):
-        return jsonify({"detail": "Categorical inputs must be string types"}), 400
+        raise ValidationError("Categorical inputs must be string types")
 
     food_preference: str = str(food_preference_raw).lower()
-    if food_preference not in ["vegan", "vegetarian", "non-vegetarian"]:
-        return jsonify({"detail": "Invalid food_preference option"}), 400
+    if food_preference not in [e.value for e in DietPreference]:
+        raise ValidationError("Invalid food_preference option")
 
     waste_recycling: str = str(waste_recycling_raw).lower()
-    if waste_recycling not in ["rarely", "sometimes", "always"]:
-        return jsonify({"detail": "Invalid waste_recycling option"}), 400
+    if waste_recycling not in [e.value for e in RecyclingFrequency]:
+        raise ValidationError("Invalid waste_recycling option")
 
     waste_plastic: str = str(waste_plastic_raw).lower()
-    if waste_plastic not in ["low", "average", "high"]:
-        return jsonify({"detail": "Invalid waste_plastic option"}), 400
+    if waste_plastic not in [e.value for e in PlasticWasteLevel]:
+        raise ValidationError("Invalid waste_plastic option")
 
     # Update data dictionary with normalized strings to ensure consistency
     data["food_preference"] = food_preference
     data["waste_recycling"] = waste_recycling
     data["waste_plastic"] = waste_plastic
 
-    total_emissions: float = calculate_emissions(data)
+    total_emissions: float = calculate_emissions(data=data)
 
     try:
         # Save carbon entry to database
@@ -182,10 +191,9 @@ def submit_calculator() -> Response:
         db.session.commit()
 
         # Action 3: Return entry serialized data using to_dict() model representation
-        return jsonify(new_entry.to_dict()), 201
+        return send_response(new_entry.to_dict(), 201)
 
     except Exception as db_err:
         db.session.rollback()
-        from flask import current_app
-        current_app.logger.error(f"Calculator database commit failed: {str(db_err)}", exc_info=True)
-        return jsonify({"detail": "Database operation failed. Please try again later."}), 500
+        logger.error(f"Calculator database commit failed: {str(db_err)}", exc_info=True)
+        return send_response({"detail": "Database operation failed. Please try again later."}, 500)

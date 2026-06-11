@@ -1,6 +1,7 @@
-from flask import Blueprint, request, jsonify, Response
+from flask import Blueprint, request, Response
 from backend.models import CarbonEntry, Recommendation, ChallengeProgress
 from backend.routes.auth import login_required
+from backend.utils import send_response
 from typing import Any, List, Dict
 
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/analytics')
@@ -15,7 +16,7 @@ def get_summary() -> Response:
     entries: List[CarbonEntry] = CarbonEntry.query.filter_by(user_id=user.id).order_by(CarbonEntry.created_at.desc()).limit(2).all()
     
     if not entries:
-        return jsonify({
+        return send_response({
             "current_month_emissions": 0.0,
             "previous_month_emissions": 0.0,
             "reduction_percentage": 0.0,
@@ -36,7 +37,7 @@ def get_summary() -> Response:
                 "shopping": 0.0,
                 "waste": 0.0
             }
-        }), 200
+        }, 200)
 
     current_entry: CarbonEntry = entries[0]
     previous_entry: Any = entries[1] if len(entries) > 1 else None
@@ -104,7 +105,7 @@ def get_summary() -> Response:
 
     sustainability_score: int = max(10, min(100, base_score))
 
-    return jsonify({
+    return send_response({
         "current_month_emissions": round(current_emissions, 2),
         "previous_month_emissions": round(previous_emissions, 2),
         "reduction_percentage": reduction_percentage,
@@ -125,7 +126,7 @@ def get_summary() -> Response:
             "shopping": round(shopping_total, 2),
             "waste": round(waste_total, 2)
         }
-    }), 200
+    }, 200)
 
 @analytics_bp.route('/history', methods=['GET'])
 @login_required
@@ -155,7 +156,7 @@ def get_history_analytics() -> Response:
 
     trends: List[Dict[str, Any]] = []
     if not entries:
-        return jsonify({"trends": []}), 200
+        return send_response({"trends": []}, 200)
 
     for entry in entries:
         label: str = entry.created_at.strftime("%b %d")
@@ -164,4 +165,4 @@ def get_history_analytics() -> Response:
             "emissions": round(entry.total_emissions, 2)
         })
         
-    return jsonify({"trends": trends}), 200
+    return send_response({"trends": trends}, 200)

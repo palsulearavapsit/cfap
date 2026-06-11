@@ -1,19 +1,44 @@
-from flask import Blueprint, request, jsonify, Response
+from flask import Blueprint, request, Response
 from datetime import datetime, timedelta
+import logging
 from sqlalchemy.orm import joinedload
 from backend.models import db, Challenge, ChallengeProgress
 from backend.routes.auth import login_required
+from backend.utils import send_response
 from typing import Any, List
 
+logger = logging.getLogger("ecotrack.challenges")
+
 challenges_bp = Blueprint('challenges', __name__, url_prefix='/challenges')
+
+# Static challenges list in-memory cache to save database queries
+challenges_cache = None
 
 @challenges_bp.route('/', methods=['GET'])
 @login_required
 def get_challenges() -> Response:
     """Returns a list of all seeded sustainability challenges in ascending order of ID."""
-    challenges: List[Challenge] = Challenge.query.order_by(Challenge.id.asc()).all()
-    # Action 3: Serialize output using to_dict() model representation
-    return jsonify([chal.to_dict() for chal in challenges]), 200
+    global challenges_cache
+    if challenges_cache is None:
+        challenges: List[Challenge] = Challenge.query.order_by(Challenge.id.asc()).all()
+        challenges_cache = [chal.to_dict() for chal in challenges]
+    return send_response(challenges_cache, 200)
+
+@challenges_bp.route('/search', methods=['GET'])
+@login_required
+def search_challenges() -> Response:
+    """Search challenges by query string keyword using safe parameterized filter queries."""
+    q: str = request.args.get('q', '').strip()
+    difficulty: str = request.args.get('difficulty', '').strip()
+    
+    query = Challenge.query
+    if q:
+        query = query.filter(Challenge.title.ilike(f"%{q}%") | Challenge.description.ilike(f"%{q}%"))
+    if difficulty:
+        query = query.filter(Challenge.difficulty.ilike(difficulty))
+        
+    results: List[Challenge] = query.order_by(Challenge.id.asc()).all()
+    return send_response([r.to_dict() for r in results], 200)
 
 @challenges_bp.route('/active', methods=['GET'])
 @login_required
@@ -26,7 +51,7 @@ def get_active_challenges() -> Response:
                                            .order_by(ChallengeProgress.start_date.desc())
                                            .all())
     # Action 3: Serialize output using to_dict() model representation
-    return jsonify([prog.to_dict() for prog in progresses]), 200
+    return send_response([prog.to_dict() for prog in progresses], 200)
 
 @challenges_bp.route('/join', methods=['POST'])
 @login_required
@@ -37,15 +62,15 @@ def join_challenge() -> Response:
     challenge_id: Any = data.get("challenge_id")
 
     if not challenge_id:
-        return jsonify({"detail": "challenge_id is required"}), 400
+        return send_response({"detail": "challenge_id is required"}, 400)
 
     # Action 6: Enforce strict type validation
     if not isinstance(challenge_id, int):
-        return jsonify({"detail": "challenge_id must be an integer"}), 400
+        return send_response({"detail": "challenge_id must be an integer"}, 400)
 
     challenge = db.session.get(Challenge, challenge_id)
     if not challenge:
-        return jsonify({"detail": "Challenge not found"}), 404
+        return send_response({"detail": "Challenge not found"}, 404)
 
     # Verify if user has already joined and is in_progress
     existing = ChallengeProgress.query.filter_by(
@@ -55,7 +80,7 @@ def join_challenge() -> Response:
     ).first()
     
     if existing:
-        return jsonify({"detail": "You are already participating in this challenge"}), 400
+        return send_response({"detail": "You are already participating in this challenge"}, 400)
 
     start_date: datetime = datetime.utcnow()
     end_date: datetime = start_date + timedelta(days=7) # Standard challenge length of 7 days
@@ -74,12 +99,11 @@ def join_challenge() -> Response:
         db.session.commit()
     except Exception as db_err:
         db.session.rollback()
-        from flask import current_app
-        current_app.logger.error(f"Join challenge database error: {str(db_err)}", exc_info=True)
-        return jsonify({"detail": "Database operation failed. Please try again later."}), 500
+        logger.error(f"Join challenge database error: {str(db_err)}", exc_info=True)
+        return send_response({"detail": "Database operation failed. Please try again later."}, 500)
 
     # Action 3: Serialize output using to_dict() model representation
-    return jsonify(new_progress.to_dict()), 201
+    return send_response(new_progress.to_dict(), 201)
 
 @challenges_bp.route('/<int:progress_id>/complete', methods=['POST'])
 @login_required
@@ -89,26 +113,30 @@ def complete_challenge(progress_id: int) -> Response:
     progress = ChallengeProgress.query.filter_by(id=progress_id, user_id=user.id).first()
 
     if not progress:
-        return jsonify({"detail": "Challenge progress record not found"}), 404
+        return send_response({"detail": "Challenge progress record not found"}, 404)
 
     if progress.completion_status != "in_progress":
-        return jsonify({"detail": f"Challenge is already {progress.completion_status}"}), 400
+        return send_response({"detail": f"Challenge is already {progress.completion_status}"}, 400)
 
     challenge = db.session.get(Challenge, progress.challenge_id)
     if not challenge:
-        return jsonify({"detail": "Associated challenge not found"}), 404
+        return send_response({"detail": "Associated challenge not found"}, 404)
 
     data: dict = request.get_json(silent=True) or {}
     raw_proof: Any = data.get("proof_text", "")
 
     # Action 6: Enforce strict type validation
     if not isinstance(raw_proof, str):
-        return jsonify({"detail": "Proof text must be a string type"}), 400
+        return send_response({"detail": "Proof text must be a string type"}, 400)
 
     proof_text: str = raw_proof.strip()
 
     if len(proof_text) > 1000:
-        return jsonify({"detail": "Proof text cannot exceed 1000 characters"}), 400
+        return send_response({"detail": "Proof text cannot exceed 1000 characters"}, 400)
+
+    # HTML Sanitizer regex to prevent stored Cross-Site Scripting (XSS) at backend layer
+    import re
+    proof_text = re.sub(r'<[^>]*>', '', proof_text)
 
     try:
         progress.completion_status = "completed"
@@ -117,9 +145,8 @@ def complete_challenge(progress_id: int) -> Response:
         db.session.commit()
     except Exception as db_err:
         db.session.rollback()
-        from flask import current_app
-        current_app.logger.error(f"Complete challenge database error: {str(db_err)}", exc_info=True)
-        return jsonify({"detail": "Database operation failed. Please try again later."}), 500
+        logger.error(f"Complete challenge database error: {str(db_err)}", exc_info=True)
+        return send_response({"detail": "Database operation failed. Please try again later."}, 500)
 
     # Action 3: Serialize output using to_dict() model representation
-    return jsonify(progress.to_dict()), 200
+    return send_response(progress.to_dict(), 200)

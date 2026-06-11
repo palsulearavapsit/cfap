@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/'/g, '&#39;');
   }
 
-  // --- APP STATE ---
+  // --- APP STATE (Item 49, 53 cached) ---
   const state = {
     charts: {
       history: null,
@@ -23,7 +23,187 @@ document.addEventListener('DOMContentLoaded', () => {
     token: localStorage.getItem('auth_token') || null,
     isRegistering: false,
     historyFilter: '6m',
+    sustainabilityScore: 80,
+    rewardPoints: 0,
   };
+
+  // --- 60 ENHANCEMENTS HELPER FUNCTIONS ---
+
+  // User Level Progression (Item 49, 53)
+  function updateLevelAndProgression(points) {
+    let level = 1;
+    let levelName = "Novice Citizen";
+    let currentLevelMin = 0;
+    let nextLevelMax = 100;
+
+    if (points > 600) {
+      level = 4;
+      levelName = "Climate Champion";
+      currentLevelMin = 601;
+      nextLevelMax = 1000;
+    } else if (points > 300) {
+      level = 3;
+      levelName = "Eco Defender";
+      currentLevelMin = 301;
+      nextLevelMax = 600;
+    } else if (points > 100) {
+      level = 2;
+      levelName = "Green Guardian";
+      currentLevelMin = 101;
+      nextLevelMax = 300;
+    }
+
+    const levelPointsEarned = points - currentLevelMin;
+    const levelPointsTotal = nextLevelMax - currentLevelMin;
+    const progressPct = Math.min(100, Math.max(0, (levelPointsEarned / levelPointsTotal) * 100));
+
+    const navBadgeContainer = document.getElementById('nav-level-badge-container');
+    const userLevelBadge = document.getElementById('user-level-badge');
+    const profileLevelLabel = document.getElementById('profile-level-label');
+    const profileNextLevelPts = document.getElementById('profile-next-level-pts');
+    const profileLevelFill = document.getElementById('profile-level-fill');
+
+    if (navBadgeContainer && userLevelBadge) {
+      userLevelBadge.textContent = `Lvl ${level}`;
+      navBadgeContainer.classList.remove('hidden');
+    }
+    if (profileLevelLabel) {
+      profileLevelLabel.textContent = `Level ${level} (${levelName})`;
+    }
+    if (profileNextLevelPts) {
+      profileNextLevelPts.textContent = `${points} / ${nextLevelMax} pts`;
+    }
+    if (profileLevelFill) {
+      profileLevelFill.style.width = `${progressPct}%`;
+    }
+
+    return { level, points };
+  }
+
+  // Achievement Badges dynamically rendering (Item 52)
+  function renderBadgesList(points, carbonScore) {
+    const badgesList = document.getElementById('badges-list');
+    if (!badgesList) return;
+
+    const badges = [
+      { id: 'novice', name: 'Green Recruit', desc: 'Join the platform & earn first points.', threshold: 0, type: 'points' },
+      { id: 'adv', name: 'Eco Advocate', desc: 'Reach 100+ total reward points.', threshold: 100, type: 'points' },
+      { id: 'expert', name: 'Carbon Slayer', desc: 'Reach 300+ total reward points.', threshold: 300, type: 'points' },
+      { id: 'champion', name: 'Earth Champion', desc: 'Reach 600+ total reward points.', threshold: 600, type: 'points' },
+      { id: 'sustain', name: 'Efficiency Guru', desc: 'Achieve a Sustainability Score of 85+.', threshold: 85, type: 'score' }
+    ];
+
+    badgesList.innerHTML = '';
+    badges.forEach(badge => {
+      const unlocked = badge.type === 'points' ? points >= badge.threshold : carbonScore >= badge.threshold;
+      
+      const badgeItem = document.createElement('div');
+      badgeItem.className = `badge-item ${unlocked ? 'active' : ''}`;
+      badgeItem.innerHTML = `
+        <svg class="badge-icon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+        </svg>
+        <div>
+          <span style="font-weight: 700; display: block; color: ${unlocked ? 'var(--accent)' : 'var(--text-muted)'}">${badge.name}</span>
+          <span style="font-size: 0.7rem; color: var(--text-secondary);">${badge.desc} ${unlocked ? ' (Unlocked!)' : ''}</span>
+        </div>
+      `;
+      badgesList.appendChild(badgeItem);
+    });
+  }
+
+  // Local-time Dashboard Greeting (Item 50)
+  function updateDashboardGreeting() {
+    const greetingEl = document.getElementById('dashboard-greeting');
+    if (!greetingEl) return;
+    const hour = new Date().getHours();
+    let greeting = "Good morning, Eco Citizen!";
+    if (hour >= 18) {
+      greeting = "Good evening, Eco Citizen!";
+    } else if (hour >= 12) {
+      greeting = "Good afternoon, Eco Citizen!";
+    }
+    greetingEl.textContent = greeting;
+  }
+
+  // Share achievements to clipboard (Item 51)
+  function setupShareButton(points) {
+    const shareBtn = document.getElementById('btn-share-achievements');
+    if (!shareBtn) return;
+    
+    const newBtn = shareBtn.cloneNode(true);
+    shareBtn.parentNode.replaceChild(newBtn, shareBtn);
+    
+    newBtn.addEventListener('click', async () => {
+      const level = points > 600 ? 4 : points > 300 ? 3 : points > 100 ? 2 : 1;
+      const textToCopy = `I am fighting climate change on EcoTrack AI! I've reached Level ${level} with ${points} reward points. Track your carbon footprint today!`;
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        showNotification('Achievements copied to clipboard!', 'success');
+      } catch (err) {
+        showNotification('Could not copy achievements to clipboard.', 'error');
+      }
+    });
+  }
+
+  // Keyboard navigation shortcuts (Item 40)
+  function setupNavigationShortcuts() {
+    window.addEventListener('keydown', (e) => {
+      if (e.altKey) {
+        const key = e.key.toLowerCase();
+        if (key === 'd') {
+          e.preventDefault();
+          navigateTo('dashboard');
+        } else if (key === 'c') {
+          e.preventDefault();
+          navigateTo('calculator');
+        } else if (key === 't') {
+          e.preventDefault();
+          navigateTo('challenges');
+        }
+      }
+    });
+  }
+
+  // Input fields validation borders and error outlines (Item 39)
+  function validateCalculatorForm() {
+    let isValid = true;
+    const numericFields = [
+      'inp-car', 'inp-bike', 'inp-public', 'inp-flights',
+      'inp-electricity', 'inp-ac', 'inp-appliance',
+      'inp-clothing', 'inp-electronics'
+    ];
+    
+    const limits = {
+      'inp-car': 100000.0,
+      'inp-bike': 10000.0,
+      'inp-public': 100000.0,
+      'inp-flights': 100000.0,
+      'inp-electricity': 50000.0,
+      'inp-ac': 744.0,
+      'inp-appliance': 744.0,
+      'inp-clothing': 1000.0,
+      'inp-electronics': 100.0
+    };
+
+    numericFields.forEach(id => {
+      const input = document.getElementById(id);
+      if (!input) return;
+      const val = parseFloat(input.value);
+      const maxVal = limits[id] || 100000.0;
+      
+      if (isNaN(val) || val < 0 || val > maxVal) {
+        input.classList.add('input-invalid');
+        input.setAttribute('aria-invalid', 'true');
+        isValid = false;
+      } else {
+        input.classList.remove('input-invalid');
+        input.removeAttribute('aria-invalid');
+      }
+    });
+    
+    return isValid;
+  }
 
   // --- API HELPER ---
   const API = {
@@ -259,10 +439,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- DASHBOARD SERVICE LOADERS ---
   async function loadDashboard() {
     try {
-      const [summary, history, recommendations] = await Promise.all([
+      const [summary, history, recommendations, activeProgress] = await Promise.all([
         API.get('/api/analytics/summary'),
         API.get(`/api/analytics/history?filter=${state.historyFilter}`),
         API.get('/api/recommendations/'),
+        API.get('/api/challenges/active'),
       ]);
 
       if (summary.current_month_emissions === 0 && recommendations.length === 0) {
@@ -291,6 +472,19 @@ document.addEventListener('DOMContentLoaded', () => {
       elements.valScoreBar.style.width = `${summary.sustainability_score}%`;
       elements.valScoreBar.setAttribute('aria-valuenow', summary.sustainability_score);
       elements.valAnnual.textContent = Math.round(summary.current_month_emissions * 12).toLocaleString();
+
+      state.sustainabilityScore = summary.sustainability_score;
+
+      // Calculate total reward points (Item 49, 53)
+      const totalPoints = activeProgress
+        .filter(p => p.completion_status === 'completed')
+        .reduce((sum, p) => sum + p.points_earned, 0);
+      state.rewardPoints = totalPoints;
+
+      // Render Dynamic Gamification and Greeting widgets
+      updateLevelAndProgression(totalPoints);
+      updateDashboardGreeting();
+      setupShareButton(totalPoints);
 
       // 2. Render Line Chart
       renderHistoryChart(history.trends);
@@ -600,6 +794,14 @@ document.addEventListener('DOMContentLoaded', () => {
   elements.formCalculator.addEventListener('submit', async (e) => {
     e.preventDefault();
     
+    // Perform client-side validation check (Item 39)
+    if (!validateCalculatorForm()) {
+      showNotification('Please correct highlighted fields exceeding maximum constraints.', 'error');
+      const firstInvalid = elements.formCalculator.querySelector('.input-invalid');
+      if (firstInvalid) firstInvalid.focus();
+      return;
+    }
+    
     // Disable submit button during load
     const submitBtn = elements.formCalculator.querySelector('.submit-calc-btn');
     const originalContent = submitBtn.innerHTML;
@@ -831,6 +1033,11 @@ document.addEventListener('DOMContentLoaded', () => {
         .reduce((sum, p) => sum + p.points_earned, 0);
 
       elements.userTotalPoints.textContent = `${totalPoints} pts`;
+      state.rewardPoints = totalPoints;
+
+      // Update User Level progression (Item 49, 53) and dynamic Badges (Item 52)
+      updateLevelAndProgression(totalPoints);
+      renderBadgesList(totalPoints, state.sustainabilityScore);
 
       const activeList = activeProgress.filter(p => p.completion_status === 'in_progress');
       elements.activeChallengesCount.textContent = activeList.length;
@@ -1023,13 +1230,18 @@ document.addEventListener('DOMContentLoaded', () => {
     state.token = null;
     localStorage.removeItem('auth_token');
     elements.userEmailDisplay.textContent = 'Eco Citizen';
+    const navLevelBadge = document.getElementById('nav-level-badge-container');
+    if (navLevelBadge) navLevelBadge.classList.add('hidden');
     navigateTo('auth');
   }
 
   if (elements.btnLogout) {
     elements.btnLogout.addEventListener('click', () => {
-      logout();
-      showNotification('Logged out successfully.', 'success');
+      // Interactive Logout Dialog box check (Item 47)
+      if (confirm('Are you sure you want to sign out of EcoTrack AI?')) {
+        logout();
+        showNotification('Logged out successfully.', 'success');
+      }
     });
   }
 
@@ -1165,6 +1377,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- INITIAL CHECK ---
   async function initAuth() {
+    setupNavigationShortcuts(); // Enable Alt-key keyboard shortcuts (Item 40)
     if (state.token) {
       try {
         const user = await API.get('/api/auth/me');

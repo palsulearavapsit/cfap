@@ -58,6 +58,9 @@
           <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="sun-icon"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
           <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="moon-icon hidden"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
         </button>
+        <div id="nav-level-badge-container" class="hidden" style="display: inline-flex; align-items: center; margin-right: 0.25rem;">
+          <span id="user-level-badge" class="level-badge">Lvl 1</span>
+        </div>
         <span id="user-email-display" class="user-badge">Eco Citizen</span>
         <button id="btn-logout" class="logout-btn hidden" aria-label="Sign Out" type="button">
           <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-icon"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
@@ -128,6 +131,17 @@
 
       <!-- Main Dashboard Grid -->
       <div id="dashboard-content" class="dashboard-grid">
+        <!-- Dashboard Greeting Header & Share Button (Item 50, 51) -->
+        <div class="margin-bottom-md" style="display: flex; justify-content: space-between; align-items: center; width: 100%; grid-column: 1 / -1; background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: var(--radius-md); padding: 1.25rem 2rem;">
+          <div>
+            <h2 id="dashboard-greeting" style="font-size: 1.5rem; background: linear-gradient(to right, var(--text-primary), var(--text-secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Hello, Eco Citizen!</h2>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">Here is your environmental impact overview for today.</p>
+          </div>
+          <button id="btn-share-achievements" class="btn-share" aria-label="Share achievements to clipboard" type="button">
+            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>
+            <span>Share Progress</span>
+          </button>
+        </div>
         <!-- 3 Metric Cards at Top -->
         <div class="metric-row">
           <div class="metric-card glass-panel">
@@ -413,6 +427,25 @@
             <span class="badge-lbl">Total Reward Points</span>
             <span id="user-total-points" class="badge-num">0 pts</span>
           </div>
+          <!-- User Level & Progress Bar (Item 49, 53) -->
+          <div class="level-progress-wrap">
+            <div class="level-progress-labels">
+              <span id="profile-level-label">Level 1 (Novice)</span>
+              <span id="profile-next-level-pts">0 / 100 pts</span>
+            </div>
+            <div class="level-progress-track">
+              <div id="profile-level-fill" class="level-progress-fill"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- User Earned Badges Panel (Item 52) -->
+      <div class="challenges-header-card glass-panel margin-top-md" style="flex-direction: column; align-items: flex-start; gap: 1rem; width: 100%;">
+        <h3>Your Achievement Badges</h3>
+        <p style="font-size: 0.85rem; color: var(--text-secondary);">Unlock badges by completing environmental challenges and lowering emissions.</p>
+        <div id="badges-list" class="badges-container">
+          <!-- Dynamically populated badge items -->
         </div>
       </div>
 

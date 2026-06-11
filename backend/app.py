@@ -27,11 +27,31 @@ def create_app(config_class: Optional[Any] = None) -> Flask:
     )
     app.logger.info("Initializing EcoTrack AI Web Application Factory...")
 
-    # Enable CORS for cross-origin local testing
-    CORS(app)
+    # Configure CORS for specific local development origins only
+    CORS(app, origins=["http://localhost:8000", "http://127.0.0.1:8000", "http://localhost:5000", "http://127.0.0.1:5000"])
+
+    # Cap maximum allowed request body size to 2MB to prevent memory exhaustion DoS
+    app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 
     # Initialize Database
     db.init_app(app)
+    
+    # Enforce SQLite foreign key constraints dynamically on connection
+    if app.config.get('SQLALCHEMY_DATABASE_URI', '').startswith('sqlite'):
+        from sqlalchemy import event
+        with app.app_context():
+            @event.listens_for(db.engine, "connect")
+            def set_sqlite_pragma(dbapi_connection, connection_record):
+                cursor = dbapi_connection.cursor()
+                cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.close()
+
+    # Generate a cryptographically secure fallback secret key if unset
+    if not app.config.get('SECRET_KEY') or app.config.get('SECRET_KEY') == 'your_cryptographic_secret_session_key':
+        import secrets
+        app.config['SECRET_KEY'] = secrets.token_hex(32)
+        app.logger.warning("SECRET_KEY was unconfigured or default. Generated a secure random fallback key.")
+
     from flask_migrate import Migrate
     migrate = Migrate()
     migrate.init_app(app, db)
@@ -53,6 +73,18 @@ def create_app(config_class: Optional[Any] = None) -> Flask:
     @app.route('/')
     def serve_index() -> Response:
         return app.send_static_file('index.html')
+
+    # Global handler for JSON validation and custom ValidationError exceptions
+    from werkzeug.exceptions import BadRequest
+    from backend.exceptions import ValidationError
+
+    @app.errorhandler(BadRequest)
+    def handle_bad_request(e: BadRequest) -> Response:
+        return jsonify({"detail": "Malformed request body. Please provide a valid JSON payload."}), 400
+
+    @app.errorhandler(ValidationError)
+    def handle_validation_error(e: ValidationError) -> Response:
+        return jsonify({"detail": e.message}), e.status_code
 
     # Catch-all route to serve index.html for SPA client-side routing
     @app.errorhandler(404)
@@ -90,6 +122,14 @@ def create_app(config_class: Optional[Any] = None) -> Flask:
             "connect-src 'self'"
         )
         response.headers['Referrer-Policy'] = 'no-referrer-when-downgrade'
+        response.headers['X-Permitted-Cross-Domain-Policies'] = 'none'
+        response.headers['Cross-Origin-Opener-Policy'] = 'same-origin'
+        response.headers['Cross-Origin-Embedder-Policy'] = 'require-corp'
+
+        # Static assets cache headers to maximize performance (Item 28)
+        if request.path.startswith('/css/') or request.path.startswith('/js/') or request.path.endswith('.html'):
+            response.headers['Cache-Control'] = 'public, max-age=31536000'
+
         return response
 
     # Seed Database on startup
@@ -116,51 +156,15 @@ def create_app(config_class: Optional[Any] = None) -> Flask:
 
             db.create_all()
             
-            # Action 9: Seeding check optimization (uses LIMIT 1 check instead of scanning full table counts)
-            if Challenge.query.first() is None:
-                challenges = [
-                    Challenge(
-                        id=1,
-                        title="No Plastic Day",
-                        description="Avoid single-use plastics for an entire day.\n\nRules & Habits:\n1. Carry a reusable water bottle instead of buying bottled beverages.\n2. Bring a reusable cloth tote bag for shopping.\n3. Refuse plastic straws, cutlery, and containers.",
-                        difficulty="Beginner",
-                        points=50
-                    ),
-                    Challenge(
-                        id=2,
-                        title="Meat-Free Monday",
-                        description="Eat only plant-based meals today.\n\nRules & Habits:\n1. Exclude all meat, poultry, and fish from all meals.\n2. Experiment with dairy-free alternatives like oat or soy milk.\n3. Build satisfying meals around grains, legumes, and fresh vegetables.",
-                        difficulty="Intermediate",
-                        points=100
-                    ),
-                    Challenge(
-                        id=3,
-                        title="Public Transport Week",
-                        description="Commute using only public transit or active transit (walk/bike) for 5 days.\n\nRules & Habits:\n1. Leave your car at home for your daily commutes.\n2. Walk, run, bicycle, or ride buses, subways, or light rails.\n3. Combine errands to minimize extra trips.",
-                        difficulty="Advanced",
-                        points=250
-                    ),
-                    Challenge(
-                        id=4,
-                        title="Zero Waste Weekend",
-                        description="Generate absolutely zero landfill waste from Friday night to Monday morning.\n\nRules & Habits:\n1. Avoid buying goods packaged in non-recyclable materials.\n2. Compost all food scraps and organic waste.\n3. Maximize sorting for standard paper, metal, and glass recycling.",
-                        difficulty="Expert",
-                        points=500
-                    )
-                ]
-                try:
-                    db.session.bulk_save_objects(challenges)
-                    db.session.commit()
-                    app.logger.info("Seeded default challenges successfully.")
-                except Exception as seed_err:
-                    db.session.rollback()
-                    app.logger.error(f"Error seeding challenges: {seed_err}")
+            # Delegate seeding to the seeding module
+            from backend.services.seeding import seed_challenges
+            seed_challenges()
         except Exception as db_init_err:
             app.logger.critical(f"Database creation/seeding failed at startup: {db_init_err}")
 
     @app.cli.command("db-backup")
     def db_backup() -> None:
-        """Backup all user carbon footprint history to a JSON file."""
+        """Backup all user carbon footprint history to a JSON file using streaming write optimizations."""
         import json
         from datetime import datetime
         from backend.models import User, CarbonEntry, ChallengeProgress, Recommendation
@@ -171,69 +175,102 @@ def create_app(config_class: Optional[Any] = None) -> Flask:
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         backup_file = os.path.join(backup_dir, f"backup_{timestamp}.json")
         
-        data = {
-            "users": [],
-            "carbon_entries": [],
-            "challenge_progress": [],
-            "recommendations": []
-        }
-        
-        for u in User.query.all():
-            data["users"].append({
-                "id": u.id,
-                "email": u.email,
-                "password_hash": u.password_hash,
-                "created_at": u.created_at.isoformat()
-            })
-            
-        for e in CarbonEntry.query.all():
-            data["carbon_entries"].append({
-                "id": e.id,
-                "user_id": e.user_id,
-                "transportation_car": e.transportation_car,
-                "transportation_bike": e.transportation_bike,
-                "transportation_public": e.transportation_public,
-                "transportation_flights": e.transportation_flights,
-                "energy_electricity": e.energy_electricity,
-                "energy_ac": e.energy_ac,
-                "energy_appliance": e.energy_appliance,
-                "food_preference": e.food_preference,
-                "shopping_clothing": e.shopping_clothing,
-                "shopping_electronics": e.shopping_electronics,
-                "waste_recycling": e.waste_recycling,
-                "waste_plastic": e.waste_plastic,
-                "total_emissions": e.total_emissions,
-                "created_at": e.created_at.isoformat()
-            })
-            
-        for p in ChallengeProgress.query.all():
-            data["challenge_progress"].append({
-                "id": p.id,
-                "user_id": p.user_id,
-                "challenge_id": p.challenge_id,
-                "start_date": p.start_date.isoformat(),
-                "end_date": p.end_date.isoformat(),
-                "completion_status": p.completion_status,
-                "points_earned": p.points_earned,
-                "proof_text": p.proof_text
-            })
-            
-        for r in Recommendation.query.all():
-            data["recommendations"].append({
-                "id": r.id,
-                "user_id": r.user_id,
-                "title": r.title,
-                "description": r.description,
-                "difficulty": r.difficulty,
-                "expected_reduction": r.expected_reduction,
-                "estimated_savings": r.estimated_savings,
-                "is_completed": r.is_completed,
-                "created_at": r.created_at.isoformat()
-            })
-            
-        with open(backup_file, "w") as f:
-            json.dump(data, f, indent=2)
-            
-        app.logger.info(f"Database backed up successfully to: {backup_file}")
+        try:
+            with open(backup_file, "w") as f:
+                f.write("{\n")
+                
+                # 1. Stream Users
+                f.write('  "users": [\n')
+                users = User.query.all()
+                for idx, u in enumerate(users):
+                    user_data = {
+                        "id": u.id,
+                        "email": u.email,
+                        "password_hash": u.password_hash,
+                        "created_at": u.created_at.isoformat()
+                    }
+                    f.write("    " + json.dumps(user_data))
+                    if idx < len(users) - 1:
+                        f.write(",\n")
+                    else:
+                        f.write("\n")
+                f.write("  ],\n")
+                
+                # 2. Stream Carbon Entries
+                f.write('  "carbon_entries": [\n')
+                entries = CarbonEntry.query.all()
+                for idx, e in enumerate(entries):
+                    entry_data = {
+                        "id": e.id,
+                        "user_id": e.user_id,
+                        "transportation_car": e.transportation_car,
+                        "transportation_bike": e.transportation_bike,
+                        "transportation_public": e.transportation_public,
+                        "transportation_flights": e.transportation_flights,
+                        "energy_electricity": e.energy_electricity,
+                        "energy_ac": e.energy_ac,
+                        "energy_appliance": e.energy_appliance,
+                        "food_preference": e.food_preference,
+                        "shopping_clothing": e.shopping_clothing,
+                        "shopping_electronics": e.shopping_electronics,
+                        "waste_recycling": e.waste_recycling,
+                        "waste_plastic": e.waste_plastic,
+                        "total_emissions": e.total_emissions,
+                        "created_at": e.created_at.isoformat()
+                    }
+                    f.write("    " + json.dumps(entry_data))
+                    if idx < len(entries) - 1:
+                        f.write(",\n")
+                    else:
+                        f.write("\n")
+                f.write("  ],\n")
+                
+                # 3. Stream Challenge Progress
+                f.write('  "challenge_progress": [\n')
+                progresses = ChallengeProgress.query.all()
+                for idx, p in enumerate(progresses):
+                    prog_data = {
+                        "id": p.id,
+                        "user_id": p.user_id,
+                        "challenge_id": p.challenge_id,
+                        "start_date": p.start_date.isoformat(),
+                        "end_date": p.end_date.isoformat(),
+                        "completion_status": p.completion_status,
+                        "points_earned": p.points_earned,
+                        "proof_text": p.proof_text
+                    }
+                    f.write("    " + json.dumps(prog_data))
+                    if idx < len(progresses) - 1:
+                        f.write(",\n")
+                    else:
+                        f.write("\n")
+                f.write("  ],\n")
+                
+                # 4. Stream Recommendations
+                f.write('  "recommendations": [\n')
+                recs = Recommendation.query.all()
+                for idx, r in enumerate(recs):
+                    rec_data = {
+                        "id": r.id,
+                        "user_id": r.user_id,
+                        "title": r.title,
+                        "description": r.description,
+                        "difficulty": r.difficulty,
+                        "expected_reduction": r.expected_reduction,
+                        "estimated_savings": r.estimated_savings,
+                        "is_completed": r.is_completed,
+                        "created_at": r.created_at.isoformat()
+                    }
+                    f.write("    " + json.dumps(rec_data))
+                    if idx < len(recs) - 1:
+                        f.write(",\n")
+                    else:
+                        f.write("\n")
+                f.write("  ]\n")
+                
+                f.write("}\n")
+            app.logger.info(f"Database backed up successfully to: {backup_file}")
+        except Exception as err:
+            app.logger.error(f"Failed to stream database backup: {str(err)}", exc_info=True)
 
     return app

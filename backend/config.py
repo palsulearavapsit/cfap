@@ -53,6 +53,12 @@ class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "ecotrack_flask_secret_development_key_12345")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    
+    # Configure default connection pool recycled timers (Item 35)
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_recycle": 1800,
+        "pool_pre_ping": True,
+    }
 
 class DevelopmentConfig(Config):
     DEBUG = True
@@ -70,7 +76,7 @@ class ProductionConfig(Config):
     DATABASE_URL = os.getenv("DATABASE_URL")
     SQLALCHEMY_DATABASE_URI = normalize_database_url(DATABASE_URL)
     
-    # Enable PostgreSQL connection pool settings for robust production usage
+    # Specialize connection pool options for PostgreSQL in production (Item 35)
     if SQLALCHEMY_DATABASE_URI and SQLALCHEMY_DATABASE_URI.startswith("postgresql"):
         SQLALCHEMY_ENGINE_OPTIONS = {
             "pool_size": 10,

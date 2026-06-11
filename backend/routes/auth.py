@@ -1,12 +1,16 @@
-from flask import request, jsonify, current_app, Blueprint, Response
+from flask import request, Blueprint, Response, current_app
 from functools import wraps
 from collections import defaultdict
 import time
 import re
 import bcrypt
+import logging
 from typing import Callable, Any, Optional
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 from backend.models import db, User
+from backend.utils import send_response
+
+logger = logging.getLogger("ecotrack.auth")
 
 # In-memory rate limiter: IP -> list of timestamps of requests
 rate_limit_store = defaultdict(list)
@@ -38,8 +42,8 @@ def rate_limit(limit: int = 5, period: int = 60) -> Callable:
                     rate_limit_store.pop(k, None)
                     
             if len(rate_limit_store[ip]) >= limit:
-                current_app.logger.warning(f"Rate limit exceeded for client IP: {ip} requesting {request.path}")
-                return jsonify({"detail": "Too many requests. Please try again later."}), 429
+                logger.warning(f"Rate limit exceeded for client IP: {ip} requesting {request.path}")
+                return send_response({"detail": "Too many requests. Please try again later."}, 429)
                 
             rate_limit_store[ip].append(now)
             return f(*args, **kwargs)
@@ -78,15 +82,15 @@ def login_required(f: Callable) -> Callable:
             token = request.cookies.get('auth_token')
             
         if not token:
-            return jsonify({"detail": "Authentication credentials were not provided."}), 401
+            return send_response({"detail": "Authentication credentials were not provided."}, 401)
             
         user_id: Optional[int] = verify_token(token)
         if not user_id:
-            return jsonify({"detail": "Signature has expired or is invalid."}), 401
+            return send_response({"detail": "Signature has expired or is invalid."}, 401)
             
         user = db.session.get(User, user_id)
         if not user:
-            return jsonify({"detail": "User not found."}), 401
+            return send_response({"detail": "User not found."}, 401)
             
         request.current_user = user # type: ignore
         return f(*args, **kwargs)
@@ -104,27 +108,27 @@ def register() -> Response:
 
     # Action 6: Enforce strict string input types to block parameter-coercion bugs
     if not isinstance(raw_email, str) or not isinstance(raw_password, str):
-        return jsonify({"detail": "Invalid input formats"}), 400
+        return send_response({"detail": "Invalid input formats"}, 400)
 
     email: str = raw_email.strip()
     password: str = raw_password
 
     if not email or not password:
-        return jsonify({"detail": "Email and password are required"}), 400
+        return send_response({"detail": "Email and password are required"}, 400)
 
     email_regex: str = r'^[\w\.-]+@[\w\.-]+\.\w+$'
     if not re.match(email_regex, email):
-        return jsonify({"detail": "Invalid email address format"}), 400
+        return send_response({"detail": "Invalid email address format"}, 400)
 
     if len(email) > 255:
-        return jsonify({"detail": "Email address must not exceed 255 characters"}), 400
+        return send_response({"detail": "Email address must not exceed 255 characters"}, 400)
 
     if len(password) < 6 or len(password) > 72:
-        return jsonify({"detail": "Password must be between 6 and 72 characters long"}), 400
+        return send_response({"detail": "Password must be between 6 and 72 characters long"}, 400)
 
     existing_user = User.query.filter_by(email=email).first()
     if existing_user:
-        return jsonify({"detail": "Email address already registered"}), 400
+        return send_response({"detail": "Email address already registered"}, 400)
 
     salt: bytes = bcrypt.gensalt()
     hashed: str = bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
@@ -135,15 +139,15 @@ def register() -> Response:
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Registration database error: {str(e)}", exc_info=True)
-        return jsonify({"detail": "A database error occurred. Please try again later."}), 500
+        logger.error(f"Registration database error: {str(e)}", exc_info=True)
+        return send_response({"detail": "A database error occurred. Please try again later."}, 500)
 
     token: str = generate_token(new_user.id)
     # Action 3: Serialize user record output using the model's to_dict() method
-    return jsonify({
+    return send_response({
         "token": token,
         "user": new_user.to_dict()
-    }), 201
+    }, 201)
 
 @auth_bp.route('/login', methods=['POST'])
 @rate_limit(limit=5, period=60)
@@ -155,20 +159,20 @@ def login() -> Response:
 
     # Action 6: Enforce strict string input types to block parameter-coercion bugs
     if not isinstance(raw_email, str) or not isinstance(raw_password, str):
-        return jsonify({"detail": "Invalid input formats"}), 400
+        return send_response({"detail": "Invalid input formats"}, 400)
 
     email: str = raw_email.strip()
     password: str = raw_password
 
     if not email or not password:
-        return jsonify({"detail": "Email and password are required"}), 400
+        return send_response({"detail": "Email and password are required"}, 400)
 
-    if len(password) > 72:
-        return jsonify({"detail": "Invalid email or password"}), 401
+    if len(email) > 255 or len(password) > 72:
+        return send_response({"detail": "Invalid email or password"}, 401)
 
     user = User.query.filter_by(email=email).first()
     if not user:
-        return jsonify({"detail": "Invalid email or password"}), 401
+        return send_response({"detail": "Invalid email or password"}, 401)
 
     try:
         is_valid: bool = bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8'))
@@ -176,14 +180,14 @@ def login() -> Response:
         is_valid = False
 
     if not is_valid:
-        return jsonify({"detail": "Invalid email or password"}), 401
+        return send_response({"detail": "Invalid email or password"}, 401)
 
     token: str = generate_token(user.id)
     # Action 3: Serialize user record output using the model's to_dict() method
-    return jsonify({
+    return send_response({
         "token": token,
         "user": user.to_dict()
-    }), 200
+    }, 200)
 
 @auth_bp.route('/me', methods=['GET'])
 @login_required
@@ -191,4 +195,12 @@ def me() -> Response:
     """Returns current active user session profile serialized data."""
     user = request.current_user # type: ignore
     # Action 3: Serialize user record output using the model's to_dict() method
-    return jsonify(user.to_dict()), 200
+    return send_response(user.to_dict(), 200)
+
+@auth_bp.route('/logout', methods=['POST'])
+@login_required
+def logout() -> Response:
+    """Logs out the user, clearing auth cookies and session storage."""
+    response = send_response({"detail": "Logged out successfully."}, 200)
+    response.headers['Clear-Site-Data'] = '"cookies", "storage"'
+    return response

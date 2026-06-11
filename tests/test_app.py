@@ -539,5 +539,49 @@ class EcoTrackTestCase(unittest.TestCase):
             data = json.loads(res.data.decode('utf-8'))
             self.assertEqual(data["detail"], "Database operation failed. Please try again later.")
 
+    def test_logout(self):
+        """Action 23: Verify logout clears session credentials with Clear-Site-Data header."""
+        res = self.client.post('/api/auth/logout', headers=self.headers)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.headers.get('Clear-Site-Data'), '"cookies", "storage"')
+
+    def test_parameterized_search(self):
+        """Action 24: Verify challenges search endpoint behaves correctly with search query parameters."""
+        # Query challenges with difficulty 'Beginner'
+        res = self.client.get('/api/challenges/search?difficulty=Beginner', headers=self.headers)
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.data.decode('utf-8'))
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["title"], "No Plastic Day")
+
+        # Query challenges with keyword search 'Meat'
+        res_kw = self.client.get('/api/challenges/search?q=Meat', headers=self.headers)
+        self.assertEqual(res_kw.status_code, 200)
+        data_kw = json.loads(res_kw.data.decode('utf-8'))
+        self.assertEqual(len(data_kw), 1)
+        self.assertEqual(data_kw[0]["title"], "Meat-Free Monday")
+
+    def test_sqlite_foreign_keys_cascade(self):
+        """Action 1: Verify foreign key CASCADE constraints in SQLite database connection."""
+        from backend.models import User, CarbonEntry
+        user = User.query.filter_by(email=self.test_email).first()
+        
+        # Verify user has no carbon entries at start
+        CarbonEntry.query.filter_by(user_id=user.id).delete()
+        db.session.commit()
+        
+        # Insert a carbon entry
+        entry = CarbonEntry(user_id=user.id, total_emissions=150.0)
+        db.session.add(entry)
+        db.session.commit()
+        self.assertEqual(CarbonEntry.query.filter_by(user_id=user.id).count(), 1)
+        
+        # Delete user, which should cascade delete carbon entry
+        db.session.delete(user)
+        db.session.commit()
+        
+        # Verify carbon entry was cascade deleted
+        self.assertEqual(CarbonEntry.query.filter_by(user_id=user.id).count(), 0)
+
 if __name__ == '__main__':
     unittest.main()
