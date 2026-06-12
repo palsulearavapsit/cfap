@@ -45,16 +45,16 @@
         <h1 class="brand-name">EcoTrack AI</h1>
       </div>
 
-      <div class="nav-links" role="menubar">
-        <button id="nav-dashboard" class="nav-btn active" aria-current="page" role="menuitem" data-view="dashboard" type="button">
+      <div class="nav-links" role="tablist" aria-label="View Selection Tabs">
+        <button id="nav-dashboard" class="nav-btn active" aria-current="page" role="tab" aria-selected="true" data-view="dashboard" type="button">
           <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-icon"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
           <span>Dashboard</span>
         </button>
-        <button id="nav-calculator" class="nav-btn" role="menuitem" data-view="calculator" type="button">
+        <button id="nav-calculator" class="nav-btn" role="tab" aria-selected="false" data-view="calculator" type="button">
           <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-icon"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="9" y1="22" x2="9" y2="16"></line><line x1="15" y1="22" x2="15" y2="16"></line><line x1="9" y1="16" x2="15" y2="16"></line><path d="M16 8h-8V6h8v2z"></path></svg>
           <span>Calculator</span>
         </button>
-        <button id="nav-challenges" class="nav-btn" role="menuitem" data-view="challenges" type="button">
+        <button id="nav-challenges" class="nav-btn" role="tab" aria-selected="false" data-view="challenges" type="button">
           <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-icon"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.45 1-1 1H4v2h16v-2h-5c-.55 0-1-.45-1-1v-2.34"></path><path d="M12 2a6 6 0 0 1 6 6v3.76a6 6 0 0 1-3.64 5.5l-2.36 1-2.36-1A6 6 0 0 1 6 11.76V8a6 6 0 0 1 6-6z"></path></svg>
           <span>Challenges</span>
         </button>
@@ -521,7 +521,7 @@
   </footer>
 
   <!-- Modal: Challenge Details (aria-modal for screen readers, Item 100) -->
-  <div id="modal-challenge-details" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-details-title" tabindex="-1">
+  <div id="modal-challenge-details" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-details-title" aria-describedby="modal-details-description" tabindex="-1">
     <div class="modal-card glass-panel">
       <div class="modal-header">
         <h2 id="modal-details-title">Challenge Details</h2>
@@ -532,7 +532,7 @@
           <span id="modal-details-difficulty" class="difficulty-badge">Beginner</span>
           <span id="modal-details-points" class="challenge-pts">+50 pts</span>
         </div>
-        <p id="modal-details-description" class="modal-desc-text" aria-describedby="modal-details-description"></p>
+        <p id="modal-details-description" class="modal-desc-text"></p>
         <div id="modal-details-rules-wrap" class="modal-rules-section">
           <h3>Steps &amp; Habits:</h3>
           <ul id="modal-details-rules-list" aria-label="Challenge rules and steps"></ul>
@@ -545,7 +545,7 @@
   </div>
 
   <!-- Modal: Challenge Proof (aria-modal for screen readers, Item 100) -->
-  <div id="modal-challenge-proof" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-proof-title" tabindex="-1">
+  <div id="modal-challenge-proof" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-proof-title" aria-describedby="modal-proof-desc" tabindex="-1">
     <div class="modal-card glass-panel">
       <div class="modal-header">
         <h2 id="modal-proof-title">Submit Completion Proof</h2>
@@ -553,11 +553,16 @@
       </div>
       <form id="form-challenge-proof" aria-label="Proof submission form">
         <div class="modal-body">
-          <p>Tell us how you completed this challenge. Share your habits or tracking notes!</p>
+          <p id="modal-proof-desc">Tell us how you completed this challenge. Share your habits or tracking notes!</p>
           <div class="input-group">
             <label for="inp-proof-text">Completion Note / Proof</label>
             <textarea id="inp-proof-text" required placeholder="e.g. I carried my reusable water flask all day and refused plastic straws." rows="4" maxlength="1000" aria-describedby="proof-text-hint"></textarea>
             <span id="proof-text-hint" class="sr-only">Maximum 1000 characters. HTML tags will be automatically stripped for security.</span>
+          </div>
+          <div class="input-group" style="margin-top: 1rem;">
+            <label for="inp-proof-image">Upload Photo Proof (Optional)</label>
+            <input type="file" id="inp-proof-image" accept="image/*" aria-describedby="proof-image-hint">
+            <span id="proof-image-hint" class="sr-only">Upload a JPG or PNG photo (maximum size 1MB) as verified proof.</span>
           </div>
         </div>
         <div class="modal-footer">

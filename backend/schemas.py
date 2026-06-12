@@ -1,21 +1,35 @@
-from backend.exceptions import ValidationError
 from typing import Any, Dict
+
 from backend.constants import (
-    LIMIT_CAR_KM, LIMIT_BIKE_KM, LIMIT_PUBLIC_KM, LIMIT_FLIGHT_KM,
-    LIMIT_ELECTRICITY, LIMIT_AC_HOURS, LIMIT_APPLIANCE_HOURS,
-    LIMIT_CLOTHING_ITEMS, LIMIT_ELECTRONICS_DEVICES
+    LIMIT_AC_HOURS,
+    LIMIT_APPLIANCE_HOURS,
+    LIMIT_BIKE_KM,
+    LIMIT_CAR_KM,
+    LIMIT_CLOTHING_ITEMS,
+    LIMIT_ELECTRICITY,
+    LIMIT_ELECTRONICS_DEVICES,
+    LIMIT_FLIGHT_KM,
+    LIMIT_PUBLIC_KM,
 )
-from backend.enums import DietPreference, RecyclingFrequency, PlasticWasteLevel
+from backend.enums import DietPreference, PlasticWasteLevel, RecyclingFrequency
+from backend.exceptions import ValidationError
+
 
 class CalculatorInputSchema:
     """Schema validator class for carbon calculator questionnaire fields."""
-    
+
     NUMERIC_FIELDS = [
-        "transportation_car", "transportation_bike", "transportation_public", "transportation_flights",
-        "energy_electricity", "energy_ac", "energy_appliance",
-        "shopping_clothing", "shopping_electronics"
+        "transportation_car",
+        "transportation_bike",
+        "transportation_public",
+        "transportation_flights",
+        "energy_electricity",
+        "energy_ac",
+        "energy_appliance",
+        "shopping_clothing",
+        "shopping_electronics",
     ]
-    
+
     LIMITS = {
         "transportation_car": LIMIT_CAR_KM,
         "transportation_bike": LIMIT_BIKE_KM,
@@ -25,7 +39,7 @@ class CalculatorInputSchema:
         "energy_ac": LIMIT_AC_HOURS,
         "energy_appliance": LIMIT_APPLIANCE_HOURS,
         "shopping_clothing": LIMIT_CLOTHING_ITEMS,
-        "shopping_electronics": LIMIT_ELECTRONICS_DEVICES
+        "shopping_electronics": LIMIT_ELECTRONICS_DEVICES,
     }
 
     @classmethod
@@ -43,7 +57,9 @@ class CalculatorInputSchema:
                         raise ValidationError(f"{field} must be a non-negative value")
                     max_limit = cls.LIMITS.get(field, 100000.0)
                     if float_val > max_limit:
-                        raise ValidationError(f"{field} exceeds maximum allowed value of {max_limit}")
+                        raise ValidationError(
+                            f"{field} exceeds maximum allowed value of {max_limit}"
+                        )
                     validated[field] = float_val
                 except (ValueError, TypeError):
                     raise ValidationError(f"{field} must be a valid numeric value")
@@ -55,7 +71,11 @@ class CalculatorInputSchema:
         waste_recycling_raw = data.get("waste_recycling", "sometimes")
         waste_plastic_raw = data.get("waste_plastic", "average")
 
-        if not isinstance(food_preference_raw, str) or not isinstance(waste_recycling_raw, str) or not isinstance(waste_plastic_raw, str):
+        if (
+            not isinstance(food_preference_raw, str)
+            or not isinstance(waste_recycling_raw, str)
+            or not isinstance(waste_plastic_raw, str)
+        ):
             raise ValidationError("Categorical inputs must be string types")
 
         food_pref = food_preference_raw.lower().strip()

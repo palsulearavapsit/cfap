@@ -13,7 +13,7 @@
 
   --text-primary: hsl(0, 0%, 100%);
   --text-secondary: hsl(215, 20%, 75%);
-  --text-muted: hsl(215, 16%, 50%);
+  --text-muted: hsl(215, 16%, 60%);
 
   --primary: hsl(160, 84%, 39%);       /* Emerald Green */
   --primary-hover: hsl(160, 84%, 33%);
@@ -1101,7 +1101,10 @@ body.light-theme {
   --panel-glow: hsla(160, 84%, 39%, 0.02);
   --text-primary: hsl(220, 20%, 10%);
   --text-secondary: hsl(220, 12%, 32%);
-  --text-muted: hsl(220, 8%, 52%);
+  --text-muted: hsl(220, 10%, 38%);
+  --primary: hsl(162, 84%, 28%);
+  --primary-hover: hsl(162, 84%, 22%);
+  --accent: hsl(162, 84%, 32%);
 }
 
 body.light-theme .navbar {

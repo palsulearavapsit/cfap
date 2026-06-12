@@ -1,34 +1,45 @@
-from flask import Blueprint, request, Response, current_app
 import logging
-from backend.models import db, Recommendation
+from typing import List
+
+from flask import Blueprint, Response, current_app, request
+
+from backend.models import Recommendation, db
 from backend.routes.auth import login_required
 from backend.utils import send_response
-from typing import List
 
 logger = logging.getLogger("ecotrack.recommendations")
 
-recommendations_bp = Blueprint('recommendations', __name__, url_prefix='/recommendations')
+recommendations_bp = Blueprint(
+    "recommendations", __name__, url_prefix="/recommendations"
+)
 
-@recommendations_bp.route('/status', methods=['GET'])
+
+@recommendations_bp.route("/status", methods=["GET"])
 def get_recommendations_status() -> Response:
     """Returns whether the Gemini API key is currently configured on the server."""
-    has_key: bool = bool(current_app.config.get('GEMINI_API_KEY'))
+    has_key: bool = bool(current_app.config.get("GEMINI_API_KEY"))
     return send_response({"gemini_configured": has_key}, 200)
 
-@recommendations_bp.route('/', methods=['GET'])
+
+@recommendations_bp.route("/", methods=["GET"])
 @login_required
 def get_recommendations() -> Response:
     """Returns a list of all personalized sustainability recommendations for the user."""
-    user = request.current_user # type: ignore
-    recs: List[Recommendation] = Recommendation.query.filter_by(user_id=user.id).order_by(Recommendation.created_at.desc()).all()
+    user = request.current_user  # type: ignore
+    recs: List[Recommendation] = (
+        Recommendation.query.filter_by(user_id=user.id)
+        .order_by(Recommendation.created_at.desc())
+        .all()
+    )
     # Action 3: Serialize recommendations list using model to_dict representation
     return send_response([r.to_dict() for r in recs], 200)
 
-@recommendations_bp.route('/<int:rec_id>/complete', methods=['PATCH'])
+
+@recommendations_bp.route("/<int:rec_id>/complete", methods=["PATCH"])
 @login_required
 def toggle_recommendation(rec_id: int) -> Response:
     """Toggles the completion status checkbox of a personalized recommendation."""
-    user = request.current_user # type: ignore
+    user = request.current_user  # type: ignore
     rec = Recommendation.query.filter_by(id=rec_id, user_id=user.id).first()
 
     if not rec:
@@ -40,8 +51,12 @@ def toggle_recommendation(rec_id: int) -> Response:
         db.session.commit()
     except Exception as db_err:
         db.session.rollback()
-        logger.error(f"Toggle recommendation database error: {str(db_err)}", exc_info=True)
-        return send_response({"detail": "Database operation failed. Please try again later."}, 500)
+        logger.error(
+            f"Toggle recommendation database error: {str(db_err)}", exc_info=True
+        )
+        return send_response(
+            {"detail": "Database operation failed. Please try again later."}, 500
+        )
 
     # Action 3: Serialize output using to_dict() model representation
     return send_response(rec.to_dict(), 200)

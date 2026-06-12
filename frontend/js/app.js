@@ -165,6 +165,37 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Semantic keyboard tab navigation for tablist (Item 42)
+  function setupTabKeyboardNavigation() {
+    const tabsList = document.querySelector('.nav-links[role="tablist"]');
+    if (!tabsList) return;
+
+    const tabs = Array.from(tabsList.querySelectorAll('button[role="tab"]'));
+    tabs.forEach((tab, index) => {
+      tab.addEventListener('keydown', (e) => {
+        let targetIndex = null;
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          targetIndex = (index + 1) % tabs.length;
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          targetIndex = (index - 1 + tabs.length) % tabs.length;
+        } else if (e.key === 'Home') {
+          e.preventDefault();
+          targetIndex = 0;
+        } else if (e.key === 'End') {
+          e.preventDefault();
+          targetIndex = tabs.length - 1;
+        }
+
+        if (targetIndex !== null) {
+          tabs[targetIndex].focus();
+          tabs[targetIndex].click();
+        }
+      });
+    });
+  }
+
   // Input fields validation borders and error outlines (Item 39)
   function validateCalculatorForm() {
     let isValid = true;
@@ -340,6 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
     modalChallengeProof: document.getElementById('modal-challenge-proof'),
     formChallengeProof: document.getElementById('form-challenge-proof'),
     inpProofText: document.getElementById('inp-proof-text'),
+    inpProofImage: document.getElementById('inp-proof-image'),
 
     // Theme toggle & Filter buttons
     btnThemeToggle: document.getElementById('btn-theme-toggle'),
@@ -404,6 +436,10 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.navCalculator.removeAttribute('aria-current');
     elements.navChallenges.removeAttribute('aria-current');
 
+    elements.navDashboard.setAttribute('aria-selected', 'false');
+    elements.navCalculator.setAttribute('aria-selected', 'false');
+    elements.navChallenges.setAttribute('aria-selected', 'false');
+
     // Accessibility route transition announcement
     const announcer = document.getElementById('route-announcer');
     if (announcer) {
@@ -413,14 +449,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (viewName === 'dashboard') {
       elements.navDashboard.classList.add('active');
       elements.navDashboard.setAttribute('aria-current', 'page');
+      elements.navDashboard.setAttribute('aria-selected', 'true');
       loadDashboard();
     } else if (viewName === 'calculator') {
       elements.navCalculator.classList.add('active');
       elements.navCalculator.setAttribute('aria-current', 'page');
+      elements.navCalculator.setAttribute('aria-selected', 'true');
       resetCalculator();
     } else if (viewName === 'challenges') {
       elements.navChallenges.classList.add('active');
       elements.navChallenges.setAttribute('aria-current', 'page');
+      elements.navChallenges.setAttribute('aria-selected', 'true');
       loadChallenges();
     }
   }
@@ -994,13 +1033,36 @@ document.addEventListener('DOMContentLoaded', () => {
       const proofText = elements.inpProofText.value.trim();
       if (!proofText) return;
 
+      let proofImage = "";
+      const imageFile = elements.inpProofImage?.files?.[0];
+      if (imageFile) {
+        if (imageFile.size > 1.5 * 1024 * 1024) {
+          showNotification('Proof image exceeds 1.5MB size limit.', 'error');
+          return;
+        }
+        try {
+          proofImage = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error("File reading failed"));
+            reader.readAsDataURL(imageFile);
+          });
+        } catch (fileErr) {
+          showNotification('Failed to read image file.', 'error');
+          return;
+        }
+      }
+
       const submitBtn = elements.formChallengeProof.querySelector('button[type="submit"]');
       const originalText = submitBtn.textContent;
       submitBtn.disabled = true;
       submitBtn.textContent = 'Submitting...';
 
       try {
-        await API.post(`/api/challenges/${activeProofProgressId}/complete`, { proof_text: proofText });
+        await API.post(`/api/challenges/${activeProofProgressId}/complete`, {
+          proof_text: proofText,
+          proof_image: proofImage
+        });
         closeModals();
         
         // Celebration Toast trigger
@@ -1212,6 +1274,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <h3>${prog.challenge.title}</h3>
               <p class="text-sm font-semibold text-emerald-400">✓ Completed successfully</p>
               ${prog.proof_text ? `<p class="mt-2 text-xs italic text-slate-400">Proof: "${escapeHTML(prog.proof_text)}"</p>` : ''}
+              ${prog.proof_image ? `<div class="mt-2"><img src="${prog.proof_image}" alt="Proof image for ${escapeHTML(prog.challenge.title)}" class="proof-img-preview" style="max-width: 100%; max-height: 150px; border-radius: var(--radius-sm); border: 1px solid var(--panel-border); margin-top: 0.5rem; display: block;" /></div>` : ''}
             </div>
           `;
           elements.completedChallengesList.appendChild(card);
@@ -1309,26 +1372,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // --- THEME TOGGLE ACTIONS ---
-  if (elements.btnThemeToggle) {
-    const savedTheme = localStorage.getItem('theme') || 'dark';
-    if (savedTheme === 'light') {
-      document.body.classList.add('light-theme');
-      elements.btnThemeToggle.querySelector('.sun-icon').classList.add('hidden');
-      elements.btnThemeToggle.querySelector('.moon-icon').classList.remove('hidden');
-    }
 
-    elements.btnThemeToggle.addEventListener('click', () => {
-      const isLight = document.body.classList.toggle('light-theme');
-      localStorage.setItem('theme', isLight ? 'light' : 'dark');
-      
-      elements.btnThemeToggle.querySelector('.sun-icon').classList.toggle('hidden', isLight);
-      elements.btnThemeToggle.querySelector('.moon-icon').classList.toggle('hidden', !isLight);
-      
-      // Action 15: Announce theme updates dynamically to assistive screen readers
-      showNotification(`Switched to ${isLight ? 'light' : 'dark'} theme.`, 'info');
-    });
-  }
 
   // --- GEMINI API STATUS ALERTS ---
   async function checkGeminiStatus() {
@@ -1377,11 +1421,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- INITIAL CHECK ---
   async function initAuth() {
-    setupNavigationShortcuts(); // Enable Alt-key keyboard shortcuts (Item 40)
-    setupThemeToggle();         // Enable theme toggle with aria-pressed announcer (Item 88, 96)
-    setupDebouncedResize();     // Debounced resize observer for charts (Item 44)
-    setupLocalStorageCache();   // Local session cache for performance (Item 58)
-    setupModalFocusTrap();      // Keyboard focus trap for modals (Item 82)
+    setupNavigationShortcuts();   // Enable Alt-key keyboard shortcuts (Item 40)
+    setupTabKeyboardNavigation(); // Enable Left/Right Arrow keyboard tablist navigation (Item 42)
+    setupThemeToggle();           // Enable theme toggle with aria-pressed announcer (Item 88, 96)
+    setupDebouncedResize();       // Debounced resize observer for charts (Item 44)
+    setupLocalStorageCache();     // Local session cache for performance (Item 58)
+    setupModalFocusTrap();        // Keyboard focus trap for modals (Item 82)
 
     if (state.token) {
       try {
@@ -1482,16 +1527,24 @@ document.addEventListener('DOMContentLoaded', () => {
     applyTheme(savedTheme, false);
 
     elements.btnThemeToggle.addEventListener('click', () => {
-      const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-      const newTheme = isDark ? 'light' : 'dark';
+      const isLight = document.body.classList.contains('light-theme');
+      const newTheme = isLight ? 'dark' : 'light';
       applyTheme(newTheme, true);
       localStorage.setItem('ecotrack_theme', newTheme);
     });
   }
 
   function applyTheme(theme, announce) {
-    document.documentElement.setAttribute('data-theme', theme);
     const isLight = theme === 'light';
+
+    // Toggle body class for CSS style overrides
+    if (isLight) {
+      document.body.classList.add('light-theme');
+    } else {
+      document.body.classList.remove('light-theme');
+    }
+
+    document.documentElement.setAttribute('data-theme', theme);
 
     if (elements.btnThemeToggle) {
       elements.btnThemeToggle.setAttribute('aria-pressed', String(isLight));
@@ -1508,6 +1561,7 @@ document.addEventListener('DOMContentLoaded', () => {
         announcer.textContent = `Theme switched to ${isLight ? 'light' : 'dark'} mode`;
         setTimeout(() => { announcer.textContent = ''; }, 3000);
       }
+      showNotification(`Switched to ${isLight ? 'light' : 'dark'} theme.`, 'info');
     }
   }
 

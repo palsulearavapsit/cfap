@@ -1,12 +1,15 @@
-from flask import jsonify, Response
-from typing import Any, Dict, Optional
-from datetime import datetime
 import logging
+from datetime import datetime
+from typing import Any, Dict, Optional
+
+from flask import Response, jsonify
 
 logger = logging.getLogger("ecotrack.utils")
 
 
-def send_response(data: Any, status_code: int = 200, headers: Optional[Dict[str, str]] = None) -> Response:
+def send_response(
+    data: Any, status_code: int = 200, headers: Optional[Dict[str, str]] = None
+) -> Response:
     """Centralized JSON response wrapper function to standardize API response schemas across all endpoints."""
     response = jsonify(data)
     response.status_code = status_code
@@ -42,5 +45,9 @@ def register_sqlalchemy_event_logger(app: Any, db: Any) -> None:
         from sqlalchemy.engine import Engine
 
         @event.listens_for(Engine, "before_cursor_execute")
-        def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-            app.logger.debug(f"[SQLAlchemy] Query: {statement[:200]} | Params: {str(parameters)[:100]}")
+        def before_cursor_execute(
+            conn, cursor, statement, parameters, context, executemany
+        ):
+            app.logger.debug(
+                f"[SQLAlchemy] Query: {statement[:200]} | Params: {str(parameters)[:100]}"
+            )

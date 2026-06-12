@@ -12,28 +12,16 @@ AC_KW = 1.5
 APPLIANCE_KW = 0.5
 
 # Food preference emission factors (kg CO2 per month)
-FOOD_FACTORS = {
-    "vegan": 100.0,
-    "vegetarian": 150.0,
-    "non-vegetarian": 300.0
-}
+FOOD_FACTORS = {"vegan": 100.0, "vegetarian": 150.0, "non-vegetarian": 300.0}
 
 # Shopping emission factors (kg CO2 per item/device)
 CLOTHING_FACTOR = 15.0
 ELECTRONICS_FACTOR = 80.0
 
 # Waste and recycling emission factors (kg CO2 per month)
-RECYCLING_FACTORS = {
-    "rarely": 50.0,
-    "sometimes": 30.0,
-    "always": 10.0
-}
+RECYCLING_FACTORS = {"rarely": 50.0, "sometimes": 30.0, "always": 10.0}
 
-PLASTIC_FACTORS = {
-    "low": 10.0,
-    "average": 25.0,
-    "high": 50.0
-}
+PLASTIC_FACTORS = {"low": 10.0, "average": 25.0, "high": 50.0}
 
 # Maximum input safety limits to prevent overflows and layout issues
 LIMIT_CAR_KM = 100000.0
@@ -68,13 +56,15 @@ DEFAULT_CHALLENGE_DURATION_DAYS = 7
 VALID_PROFILES = ("development", "testing", "production")
 
 # Allowed HTTP Request Header Names for sanitization (Item 15)
-ALLOWED_HEADERS_WHITELIST = frozenset([
-    "authorization",
-    "content-type",
-    "x-requested-with",
-    "x-csrf-token",
-    "x-forwarded-for",
-    "accept",
-    "accept-language",
-    "cache-control",
-])
+ALLOWED_HEADERS_WHITELIST = frozenset(
+    [
+        "authorization",
+        "content-type",
+        "x-requested-with",
+        "x-csrf-token",
+        "x-forwarded-for",
+        "accept",
+        "accept-language",
+        "cache-control",
+    ]
+)
