@@ -1,3 +1,20 @@
+[project]
+name = "cfap"
+version = "0.1.0"
+description = "EcoTrack AI Carbon Footprint Tracker"
+dependencies = [
+    "Flask==3.0.2",
+    "Flask-Cors==4.0.1",
+    "python-dotenv==1.0.1",
+    "Flask-SQLAlchemy==3.1.1",
+    "Flask-Migrate==4.0.7",
+    "psycopg2-binary==2.9.9",
+    "pymysql==1.1.0",
+    "bcrypt==4.1.2",
+    "cryptography==42.0.5",
+    "google-generativeai==0.4.0",
+]
+
 [tool.isort]
 profile = "black"
 line_length = 88
