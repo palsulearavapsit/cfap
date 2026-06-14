@@ -4,7 +4,7 @@ import re
 import time
 from collections import defaultdict
 from functools import wraps
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import bcrypt
 from flask import Blueprint, Response, current_app, request
@@ -16,10 +16,10 @@ from backend.utils import send_response
 logger = logging.getLogger("ecotrack.auth")
 
 # In-memory rate limiter: IP -> list of timestamps of requests
-rate_limit_store = defaultdict(list)
+rate_limit_store: Dict[str, List[float]] = defaultdict(list)
 
 # In-memory login failures store: IP -> list of timestamps of failed logins (Item 24)
-failed_login_store = defaultdict(list)
+failed_login_store: Dict[str, List[float]] = defaultdict(list)
 
 
 def rate_limit(limit: int = 5, period: int = 60) -> Callable:

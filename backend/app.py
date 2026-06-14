@@ -1,10 +1,10 @@
 import logging
 import os
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 from flask import Flask, Response, request
-from flask_cors import CORS
+from flask_cors import CORS  # type: ignore
 
 from backend.constants import VALID_PROFILES
 from backend.models import Challenge, db
@@ -105,7 +105,7 @@ def create_app(config_class: Optional[Any] = None) -> Flask:
             "SECRET_KEY was unconfigured or default. Generated a secure random fallback key."
         )
 
-    from flask_migrate import Migrate
+    from flask_migrate import Migrate  # type: ignore
 
     migrate = Migrate()
     migrate.init_app(app, db)
@@ -131,7 +131,7 @@ def create_app(config_class: Optional[Any] = None) -> Flask:
     @app.route("/api/health", methods=["GET"])
     def health_check() -> Response:
         """Endpoint validating server dynamic health and database connection integrity."""
-        health_status = {
+        health_status: Dict[str, Any] = {
             "status": "healthy",
             "timestamp": datetime.utcnow().isoformat(),
             "services": {"database": "unknown"},

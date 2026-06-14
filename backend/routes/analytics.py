@@ -67,75 +67,26 @@ def get_summary() -> Response:
         ) * 100
         reduction_percentage = round(reduction_percentage, 1)
 
-    # Compute breakdown detail using conversion constants
-    from backend.routes.calculator import (
-        AC_KW,
-        APPLIANCE_KW,
-        BIKE_FACTOR,
-        CAR_FACTOR,
-        CLOTHING_FACTOR,
-        ELECTRICITY_FACTOR,
-        ELECTRONICS_FACTOR,
-        FLIGHT_FACTOR,
-        FOOD_FACTORS,
-        PLASTIC_FACTORS,
-        PUBLIC_FACTOR,
-        RECYCLING_FACTORS,
-    )
+    # Compute breakdown detail using calculation service
+    from backend.services.calculation_service import CalculationService
 
-    t_car: float = current_entry.transportation_car * CAR_FACTOR
-    t_bike: float = current_entry.transportation_bike * BIKE_FACTOR
-    t_public: float = current_entry.transportation_public * PUBLIC_FACTOR
-    t_flights: float = current_entry.transportation_flights * FLIGHT_FACTOR
-    transport_total: float = t_car + t_bike + t_public + t_flights
+    breakdown = CalculationService.get_category_breakdown(current_entry)
+    transport_total = breakdown["values"]["transportation"]
+    energy_total = breakdown["values"]["energy"]
+    food_total = breakdown["values"]["food"]
+    shopping_total = breakdown["values"]["shopping"]
+    waste_total = breakdown["values"]["waste"]
 
-    e_elec: float = current_entry.energy_electricity * ELECTRICITY_FACTOR
-    e_ac: float = current_entry.energy_ac * AC_KW * ELECTRICITY_FACTOR
-    e_app: float = current_entry.energy_appliance * APPLIANCE_KW * ELECTRICITY_FACTOR
-    energy_total: float = e_elec + e_ac + e_app
-
-    food_total: float = FOOD_FACTORS.get(current_entry.food_preference.lower(), 300.0)
-    shopping_total: float = (current_entry.shopping_clothing * CLOTHING_FACTOR) + (
-        current_entry.shopping_electronics * ELECTRONICS_FACTOR
-    )
-    waste_total: float = RECYCLING_FACTORS.get(
-        current_entry.waste_recycling.lower(), 30.0
-    ) + PLASTIC_FACTORS.get(current_entry.waste_plastic.lower(), 25.0)
-
-    total: float = (
-        transport_total + energy_total + food_total + shopping_total + waste_total
-    )
-
-    transport_pct: float = 0.0
-    energy_pct: float = 0.0
-    food_pct: float = 0.0
-    shopping_pct: float = 0.0
-    waste_pct: float = 0.0
-
-    if total > 0:
-        transport_pct = round((transport_total / total) * 100, 1)
-        energy_pct = round((energy_total / total) * 100, 1)
-        food_pct = round((food_total / total) * 100, 1)
-        shopping_pct = round((shopping_total / total) * 100, 1)
-        waste_pct = round((waste_total / total) * 100, 1)
+    transport_pct = breakdown["percentages"]["transportation"]
+    energy_pct = breakdown["percentages"]["energy"]
+    food_pct = breakdown["percentages"]["food"]
+    shopping_pct = breakdown["percentages"]["shopping"]
+    waste_pct = breakdown["percentages"]["waste"]
 
     # Calculate Sustainability Score
-    base_score: int = 80
-    if current_emissions > 100:
-        penalty: int = int((current_emissions - 100) // 10)
-        base_score -= penalty
-
-    completed_challenges: int = ChallengeProgress.query.filter_by(
-        user_id=user.id, completion_status="completed"
-    ).count()
-    base_score += completed_challenges * 5
-
-    completed_recs: int = Recommendation.query.filter_by(
-        user_id=user.id, is_completed=True
-    ).count()
-    base_score += completed_recs * 3
-
-    sustainability_score: int = max(10, min(100, base_score))
+    sustainability_score = CalculationService.calculate_sustainability_score(
+        user.id, current_emissions
+    )
 
     return send_response(
         {

@@ -45,7 +45,7 @@ class CalculatorInputSchema:
     @classmethod
     def validate(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """Validates incoming questionnaire parameters and returns normalized variables."""
-        validated = {}
+        validated: Dict[str, Any] = {}
         for field in cls.NUMERIC_FIELDS:
             val = data.get(field)
             if val is not None:

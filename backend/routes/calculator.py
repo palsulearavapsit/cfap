@@ -32,65 +32,13 @@ from backend.enums import DietPreference, PlasticWasteLevel, RecyclingFrequency
 from backend.exceptions import ValidationError
 from backend.models import CarbonEntry, Recommendation, RecommendationCache, db
 from backend.routes.auth import login_required
+from backend.services.calculation_service import CalculationService
 from backend.services.gemini_service import generate_recommendations_gemini
 from backend.utils import send_response
 
 logger = logging.getLogger("ecotrack.calculator")
 
 calculator_bp = Blueprint("calculator", __name__, url_prefix="/calculator")
-
-
-def calculate_emissions(*, data: dict) -> float:
-    """Calculates carbon emissions in kg CO2/month based on lifestyle data using keyword-only data."""
-    # 1. Transportation
-    transport_car: float = float(data.get("transportation_car", 0)) * CAR_FACTOR
-    transport_bike: float = float(data.get("transportation_bike", 0)) * BIKE_FACTOR
-    transport_public: float = (
-        float(data.get("transportation_public", 0)) * PUBLIC_FACTOR
-    )
-    transport_flights: float = (
-        float(data.get("transportation_flights", 0)) * FLIGHT_FACTOR
-    )
-    transport_total: float = (
-        transport_car + transport_bike + transport_public + transport_flights
-    )
-
-    # 2. Energy
-    energy_electricity: float = (
-        float(data.get("energy_electricity", 0)) * ELECTRICITY_FACTOR
-    )
-    energy_ac: float = float(data.get("energy_ac", 0)) * AC_KW * ELECTRICITY_FACTOR
-    energy_appliance: float = (
-        float(data.get("energy_appliance", 0)) * APPLIANCE_KW * ELECTRICITY_FACTOR
-    )
-    energy_total: float = energy_electricity + energy_ac + energy_appliance
-
-    # 3. Food
-    food_total: float = FOOD_FACTORS.get(
-        str(data.get("food_preference", "non-vegetarian")).lower(), 300.0
-    )
-
-    # 4. Shopping
-    shopping_clothing: float = float(data.get("shopping_clothing", 0)) * CLOTHING_FACTOR
-    shopping_electronics: float = (
-        float(data.get("shopping_electronics", 0)) * ELECTRONICS_FACTOR
-    )
-    shopping_total: float = shopping_clothing + shopping_electronics
-
-    # 5. Waste
-    waste_recycling: float = RECYCLING_FACTORS.get(
-        str(data.get("waste_recycling", "sometimes")).lower(), 30.0
-    )
-    waste_plastic: float = PLASTIC_FACTORS.get(
-        str(data.get("waste_plastic", "average")).lower(), 25.0
-    )
-    waste_total: float = waste_recycling + waste_plastic
-
-    # 6. Total
-    total: float = (
-        transport_total + energy_total + food_total + shopping_total + waste_total
-    )
-    return round(total, 2)
 
 
 @calculator_bp.route("/submit", methods=["POST"])
@@ -104,7 +52,7 @@ def submit_calculator() -> Response:
 
     validated_data = CalculatorInputSchema.validate(data)
 
-    total_emissions: float = calculate_emissions(data=validated_data)
+    total_emissions: float = CalculationService.calculate_emissions(validated_data)
 
     try:
         # Save carbon entry to database

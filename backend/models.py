@@ -1,11 +1,15 @@
 from datetime import datetime
+from typing import Any
 
 from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
 
+# Cast Model to Any to satisfy mypy static type checking
+Model: Any = db.Model
 
-class User(db.Model):
+
+class User(Model):
     """User profile database model representation."""
 
     __tablename__ = "users"
@@ -42,7 +46,7 @@ class User(db.Model):
         }
 
 
-class CarbonEntry(db.Model):
+class CarbonEntry(Model):
     """Monthly carbon footprint calculation entry model representation."""
 
     __tablename__ = "carbon_entries"
@@ -126,7 +130,7 @@ class CarbonEntry(db.Model):
         }
 
 
-class Recommendation(db.Model):
+class Recommendation(Model):
     """Personalized carbon reduction recommendations model representation."""
 
     __tablename__ = "recommendations"
@@ -178,7 +182,7 @@ class Recommendation(db.Model):
         }
 
 
-class Challenge(db.Model):
+class Challenge(Model):
     """Seeded sustainability challenge definition model representation."""
 
     __tablename__ = "challenges"
@@ -217,7 +221,7 @@ class Challenge(db.Model):
         }
 
 
-class ChallengeProgress(db.Model):
+class ChallengeProgress(Model):
     """User challenge enrollment and tracking progress model representation."""
 
     __tablename__ = "challenge_progress"
@@ -277,7 +281,7 @@ class ChallengeProgress(db.Model):
         }
 
 
-class RecommendationCache(db.Model):
+class RecommendationCache(Model):
     """API recommendations cache for carbon footprint query hashes."""
 
     __tablename__ = "recommendation_caches"
