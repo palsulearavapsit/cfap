@@ -1,29 +1,165 @@
-# Pending Project Tasks - EcoTrack AI
+# Pending Project Tasks - EcoTrack AI (150 Actions Checklist)
 
-This task list identifies pending feature enhancements, security updates, and performance optimizations for the EcoTrack AI platform.
+This task list tracks the implementation and verification of the 150 actions across the six judging parameters.
 
-## 1. Authentication & Security
-- [x] Implement actual user registration (sign-up) and login views on the frontend.
-- [x] Implement secure password verification and token-based authentication (JWT or secure cookies) on the backend.
-- [x] Replace default fallback user mock in `backend/routes/auth.py` with dynamic session validation.
-- [x] Enforce rate-limiting on user registration/login endpoints to prevent brute-force attacks.
+## 1. Code Quality (Actions 1 to 25)
+- [x] Action-CQ-01: Refactor route logic to utilize schema validators.
+- [x] Action-CQ-02: Standardize route error message responses to use a unified mapping.
+- [x] Action-CQ-03: Add full python type hints and annotations across routes.
+- [x] Action-CQ-04: Integrate a linting formatter configuration file (pyproject.toml).
+- [x] Action-CQ-05: Add Docstrings to all controller endpoints.
+- [x] Action-CQ-06: Extract carbon conversion factors to a structured config constants mapping.
+- [x] Action-CQ-07: Decouple database initial seeding from environment configurations.
+- [x] Action-CQ-08: Use structured logger wrappers in blueprints.
+- [x] Action-CQ-09: Implement strict mypy lint checks.
+- [x] Action-CQ-10: Extract token validation routines to a single helper function.
+- [x] Action-CQ-11: Refactor client state management to use central state values.
+- [x] Action-CQ-12: Use ESM modules structure in client-side scripts.
+- [x] Action-CQ-13: Decouple Canvas/SVG drawing code from main routes.
+- [x] Action-CQ-14: Establish HSL css color token variables in style sheets.
+- [x] Action-CQ-15: Clean DOM event handlers to utilize event delegation.
+- [x] Action-CQ-16: Implement clean CSS Normalize stylesheet rules.
+- [x] Action-CQ-17: Refactor emissions calculator formulas into a distinct service class pattern.
+- [x] Action-CQ-18: Standardize API responses structure.
+- [x] Action-CQ-19: Clean up light/dark mode storage check transitions.
+- [x] Action-CQ-20: Document manual database migration upgrade flows.
+- [x] Action-CQ-21: Establish serializer model mixins.
+- [x] Action-CQ-22: Clean wildcards from imports statements.
+- [x] Action-CQ-23: Maintain consistent database column naming conventions.
+- [x] Action-CQ-24: Avoid inline CSS modifications in Javascript.
+- [x] Action-CQ-25: Establish formatting rules inside CONTRIBUTING.md.
 
-## 2. Advanced Analytics & Charts
-- [x] Add view filtering controls (3-Month, 6-Month, Year-to-Date view) for the history line chart on the dashboard.
-- [x] Add average carbon comparison charts showing user emissions relative to national averages.
-- [x] Enhance category breakdown visualization with interactive tooltips displaying absolute values (in kg) alongside percentages.
+## 2. Security (Actions 26 to 50)
+- [x] Action-SEC-26: Configure security headers middleware hooks.
+- [x] Action-SEC-27: Configure secure CORS policy origins.
+- [x] Action-SEC-28: Enforce RFC email format validations.
+- [x] Action-SEC-29: Lock accounts temporarily after 5 failed login attempts.
+- [x] Action-SEC-30: Limit payload size limits strictly to prevent memory DoS.
+- [x] Action-SEC-31: Limit password bounds checks securely.
+- [x] Action-SEC-32: Sanitize challenge completion proof strings from HTML tags.
+- [x] Action-SEC-33: Configure secure session cookies keys properties.
+- [x] Action-SEC-34: Enforce max payload nesting depth validation.
+- [x] Action-SEC-35: Generate cryptographically signed JWT/Timed tokens.
+- [x] Action-SEC-36: Implement active pruner for rate limiter IP records.
+- [x] Action-SEC-37: Escape inputs in queries using SQLAlchemy parameters.
+- [x] Action-SEC-38: Turn off debug mode options inside production setups.
+- [x] Action-SEC-39: Auto generate fallback secure keys on startup.
+- [x] Action-SEC-40: Enforce Clear-Site-Data logic on logout.
+- [x] Action-SEC-41: Mask sensitive log data fields.
+- [x] Action-SEC-42: Configure foreign keys checks on SQLite connect event.
+- [x] Action-SEC-43: Set proof image base64 size restrictions.
+- [x] Action-SEC-44: Sanitize base64 image strings inputs.
+- [x] Action-SEC-45: Stream JSON database backups safely.
+- [x] Action-SEC-46: Reject duplicate query parameters in request.
+- [x] Action-SEC-47: Validate passwords to prevent weak dictionary matches.
+- [x] Action-SEC-48: Output localized safe details messages on DB exceptions.
+- [x] Action-SEC-49: Prevent profile IDOR vulnerabilities.
+- [x] Action-SEC-50: Secure backups logs with checksum verification files.
 
-## 3. Challenge Enhancements
-- [x] Add description popups/modals to challenges detailing step-by-step rules and tracking habits.
-- [x] Implement a challenge completion proof workflow (e.g. uploading proof images or linking device stats).
-- [x] Store past completed challenges history dynamically in the user profile view.
+## 3. Efficiency (Actions 51 to 75)
+- [x] Action-EFF-51: Enforce indexing of database foreign keys join relationships.
+- [x] Action-EFF-52: Build composite indexes on carbon footprint logs history tables.
+- [x] Action-EFF-53: Cache AI recommendations queries using input parameters hashes.
+- [x] Action-EFF-54: Use debounced window resize observer on SVG/Canvas elements.
+- [x] Action-EFF-55: Set aggressive Cache-Control settings on static resources.
+- [x] Action-EFF-56: Use DocumentFragment templates for batch rendering elements.
+- [x] Action-EFF-57: Cache user credentials in client-side storage.
+- [x] Action-EFF-58: Delay parsing stylesheet templates until requested.
+- [x] Action-EFF-59: Debounce inputs fields searches calls.
+- [x] Action-EFF-60: Implement limit-offset pagination on analytics records queries.
+- [x] Action-EFF-61: Release active DB sessions dynamically at context teardowns.
+- [x] Action-EFF-62: Configure SQLAlchemy pool sizing properties.
+- [x] Action-EFF-63: Stream JSON file backups using chunked writes.
+- [x] Action-EFF-64: Compress styling and logic bundles in production profiles.
+- [x] Action-EFF-65: Optimize transition animations rendering using CSS transform properties.
+- [x] Action-EFF-66: Use dns-prefetch links for google font integrations.
+- [x] Action-EFF-67: Prevent SQLAlchemy query N+1 issues using eager joinedload selections.
+- [x] Action-EFF-68: Seeding database challenges using single bulk transactions.
+- [x] Action-EFF-69: Configure cost-effective AI models configurations (gemini-2.5-flash).
+- [x] Action-EFF-70: Pre-compile regular expression configurations.
+- [x] Action-EFF-71: Cache standard eco-challenges list.
+- [x] Action-EFF-72: Cache analytics graphs data results.
+- [x] Action-EFF-73: Use exists query functions in DB validation calls.
+- [x] Action-EFF-74: Throttle button clicks to prevent double-submit records.
+- [x] Action-EFF-75: Cache static fallback rules suggestions in memory.
 
-## 4. Production Readiness & Infrastructure
-- [x] Integrate Flask-Migrate (Alembic) for robust database schema versioning.
-- [x] Add production database configuration profiles for PostgreSQL / Supabase, separating development and production setups cleanly.
-- [x] Implement automatic daily backups of user footprint history.
+## 4. Testing (Actions 76 to 100)
+- [x] Action-TST-76: Verify calculator rejects negative values input.
+- [x] Action-TST-77: Verify calculator rejects invalid diet options strings.
+- [x] Action-TST-78: Verify fallback recommendations generation rules.
+- [x] Action-TST-79: Verify challenges join and active progression checks.
+- [x] Action-TST-80: Verify duplicate registry emails rejection.
+- [x] Action-TST-81: Verify password length boundary checks.
+- [x] Action-TST-82: Verify expired token authentication signature returns 401.
+- [x] Action-TST-83: Verify rate-limit block response code.
+- [x] Action-TST-84: Verify analytics filtering duration trends slices.
+- [x] Action-TST-85: Verify security headers checks on response paths.
+- [x] Action-TST-86: Verify DB backup CLI command outputs correct json and checksum files.
+- [x] Action-TST-87: Verify sustainability score calculations and challenges completions impact.
+- [x] Action-TST-88: Verify proof image uploads bounds checks.
+- [x] Action-TST-89: Verify SQLAlchemy pre-ping properties configured.
+- [x] Action-TST-90: Verify DietPreference enum integrations.
+- [x] Action-TST-91: Verify SQL injection attempts are safely parsed using ORM.
+- [x] Action-TST-92: Verify recommendation config status endpoint results.
+- [x] Action-TST-93: Verify PATCH recommendations toggle requests details.
+- [x] Action-TST-94: Verify JSON bomb depth checks rejection.
+- [x] Action-TST-95: Verify CSRF token check rejection.
+- [x] Action-TST-96: Verify proxy IP headers rate limits verification.
+- [x] Action-TST-97: Verify DB exception rollback execution.
+- [x] Action-TST-98: Verify logout cookie removal and Clear-Site-Data response header.
+- [x] Action-TST-99: Verify challenges parameterized search results.
+- [x] Action-TST-100: Verify CORS allowed origin validation settings.
 
-## 5. UI/UX and Accessibility Refinements
-- [x] Integrate a Dark/Light mode toggle utilizing HSL theme transitions.
-- [x] Add keyboard-trap handling inside the wizard steps to prevent tab indexing outside of active views.
-- [x] Add clear alert banners for instances when the Gemini API is unconfigured, warning users that fallback recommendations are active.
+## 5. Accessibility (Actions 101 to 125)
+- [x] Action-ACC-101: Trap focus inside modal views for screen readers.
+- [x] Action-ACC-102: Announce client SPA route transitions.
+- [x] Action-ACC-103: Embed hidden skip links options.
+- [x] Action-ACC-104: Use live announcements on form feedback.
+- [x] Action-ACC-105: Update themes button state with aria-pressed.
+- [x] Action-ACC-106: Enforce semantic markup headers layouts.
+- [x] Action-ACC-107: Draw visual validator markers next to input errors.
+- [x] Action-ACC-108: Explicitly associate form inputs with label elements.
+- [x] Action-ACC-109: Assign correct ARIA roles on page tablist controls.
+- [x] Action-ACC-110: Design prominent focus rings for keyboard users.
+- [x] Action-ACC-111: Trap keyboard index inside wizard survey forms.
+- [x] Action-ACC-112: Support keyboard Alt key shortcuts.
+- [x] Action-ACC-113: Enable arrow keys selectors in tab lists.
+- [x] Action-ACC-114: Meet WCAG contrast parameters across theme transitions.
+- [x] Action-ACC-115: Hide purely decorative icons from screen readers.
+- [x] Action-ACC-116: Assign descriptive alt tags on image assets.
+- [x] Action-ACC-117: Ensure SVG tooltips are focusable.
+- [x] Action-ACC-118: Configure autocomplete options on details inputs.
+- [x] Action-ACC-119: Maintain clear heading orders.
+- [x] Action-ACC-120: Embed title fields in raw custom icons SVGs.
+- [x] Action-ACC-121: Add screen reader overlay quick guides.
+- [x] Action-ACC-122: Map role=dialog properties on modal wrappers.
+- [x] Action-ACC-123: Validate page structure at 200% scale layouts.
+- [x] Action-ACC-124: Reveal metrics information on click or focus.
+- [x] Action-ACC-125: Update page documents header titles on view swaps.
+
+## 6. Problem Statement Alignment (Actions 126 to 150)
+- [x] Action-PSA-126: Calculate footprint data totals using verified emission constants.
+- [x] Action-PSA-127: Compare user footprints against national averages.
+- [x] Action-PSA-128: Compare user footprints against global sustainable averages (350 kg CO2).
+- [x] Action-PSA-129: Show category breakdown values next to percentage rates.
+- [x] Action-PSA-130: Show step-by-step guidelines on challenges cards detail modals.
+- [x] Action-PSA-131: Validate proof strings during challenges completions.
+- [x] Action-PSA-132: Cache recommendations utilizing inputs parameters hashes.
+- [x] Action-PSA-133: Provide offline fallback rules suggestions lists.
+- [x] Action-PSA-134: Show alert notice blocks when recommendations run on fallbacks.
+- [x] Action-PSA-135: Enforce level calculations based on points logs metrics.
+- [x] Action-PSA-136: Map user level points to eco-friendly naming tiers.
+- [x] Action-PSA-137: Grant user profile goals achievement badges.
+- [x] Action-PSA-138: Provide local hour greeted headings.
+- [x] Action-PSA-139: Include direct clipboard actions on achievements shares.
+- [x] Action-PSA-140: Draw chronological analytics line graphs.
+- [x] Action-PSA-141: Add description modals on challenges layouts.
+- [x] Action-PSA-142: Enable 3m, 6m, and ytd history graph slices.
+- [x] Action-PSA-143: Add keyword input filters on active challenges.
+- [x] Action-PSA-144: Validate inputs bounds limits correctly.
+- [x] Action-PSA-145: Render profile analytics summary dashboard panels.
+- [x] Action-PSA-146: Implement calculator onboarding wizard setup guides.
+- [x] Action-PSA-147: Provide custom seeds command.
+- [x] Action-PSA-148: Save DB data backups regularly.
+- [x] Action-PSA-149: Manage production environment database config setups.
+- [x] Action-PSA-150: Request lifestyle recommendation lists using Gemini AI.

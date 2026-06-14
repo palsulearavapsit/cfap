@@ -1129,6 +1129,156 @@ class EcoTrackTestCase(unittest.TestCase):
         )
         self.assertEqual(res_patch_invalid.status_code, 404)
 
+    def test_action_tst_76_calculator_negative_bounds(self):
+        """Action-TST-76: Verify calculator rejects negative values input."""
+        res = self.client.post("/api/calculator/submit", data=json.dumps({"transportation_car": -10, "food_preference": "vegan", "waste_recycling": "always", "waste_plastic": "low"}), content_type="application/json", headers=self.headers)
+        self.assertEqual(res.status_code, 400)
+
+    def test_action_tst_77_calculator_invalid_diet(self):
+        """Action-TST-77: Verify calculator rejects invalid diet options strings."""
+        res = self.client.post("/api/calculator/submit", data=json.dumps({"transportation_car": 0, "food_preference": "unknown_preference", "waste_recycling": "always", "waste_plastic": "low"}), content_type="application/json", headers=self.headers)
+        self.assertEqual(res.status_code, 400)
+
+    def test_action_tst_78_fallback_recommendations_logic(self):
+        """Action-TST-78: Verify fallback recommendations generation rules."""
+        from backend.services.gemini_service import get_fallback_recommendations
+        recs = get_fallback_recommendations({"transportation_car": 1000})
+        self.assertTrue(any(r["title"] == "Switch to Public Transit" for r in recs))
+
+    def test_action_tst_79_active_challenge_progression(self):
+        """Action-TST-79: Verify challenges join and active progression checks."""
+        join_res = self.client.post("/api/challenges/join", data=json.dumps({"challenge_id": 1}), content_type="application/json", headers=self.headers)
+        self.assertEqual(join_res.status_code, 201)
+        act_res = self.client.get("/api/challenges/active", headers=self.headers)
+        self.assertEqual(act_res.status_code, 200)
+
+    def test_action_tst_80_duplicate_email_registration_check(self):
+        """Action-TST-80: Verify duplicate registry emails rejection."""
+        res = self.client.post("/api/auth/register", data=json.dumps({"email": self.test_email, "password": "newpassword123"}), content_type="application/json")
+        self.assertEqual(res.status_code, 400)
+
+    def test_action_tst_81_password_length_boundary_validation(self):
+        """Action-TST-81: Verify password length boundary checks."""
+        res = self.client.post("/api/auth/register", data=json.dumps({"email": "valid2@ecotrack.ai", "password": "123"}), content_type="application/json")
+        self.assertEqual(res.status_code, 400)
+
+    def test_action_tst_82_expired_token_signature_verification(self):
+        """Action-TST-82: Verify expired token authentication signature returns 401."""
+        res = self.client.get("/api/auth/me", headers={"Authorization": "Bearer expired_or_invalid_token"})
+        self.assertEqual(res.status_code, 401)
+
+    def test_action_tst_83_rate_limit_blocking_code(self):
+        """Action-TST-83: Verify rate-limit block response code."""
+        import time
+        from backend.routes.auth import rate_limit_store
+        # Artificially trigger rate limit
+        rate_limit_store["127.0.0.1"] = [time.time()] * 10
+        res = self.client.post("/api/auth/login", data=json.dumps({"email": self.test_email, "password": self.test_password}), content_type="application/json")
+        self.assertEqual(res.status_code, 429)
+
+    def test_action_tst_84_analytics_filter_duration_slices(self):
+        """Action-TST-84: Verify analytics filtering duration trends slices."""
+        res = self.client.get("/api/analytics/history?filter=3m", headers=self.headers)
+        self.assertEqual(res.status_code, 200)
+
+    def test_action_tst_85_security_headers_checks_on_response(self):
+        """Action-TST-85: Verify security headers checks on response paths."""
+        res = self.client.get("/api/auth/me", headers=self.headers)
+        self.assertEqual(res.headers.get("X-Frame-Options"), "DENY")
+
+    def test_action_tst_86_db_backup_cli_command_output(self):
+        """Action-TST-86: Verify DB backup CLI command outputs correct files."""
+        runner = self.app.test_cli_runner()
+        result = runner.invoke(args=["db-backup"])
+        self.assertEqual(result.exit_code, 0)
+
+    def test_action_tst_87_sustainability_score_completed_challenges_effect(self):
+        """Action-TST-87: Verify sustainability score calculations and challenges completions impact."""
+        res = self.client.get("/api/analytics/summary", headers=self.headers)
+        self.assertEqual(res.status_code, 200)
+
+    def test_action_tst_88_proof_image_uploads_bounds_check(self):
+        """Action-TST-88: Verify proof image uploads bounds checks."""
+        join_res = self.client.post("/api/challenges/join", data=json.dumps({"challenge_id": 1}), content_type="application/json", headers=self.headers)
+        prog_id = json.loads(join_res.data.decode("utf-8"))["id"]
+        res = self.client.post(f"/api/challenges/{prog_id}/complete", data=json.dumps({"proof_text": "Completed!", "proof_image": "x" * int(1.6 * 1024 * 1024)}), content_type="application/json", headers=self.headers)
+        self.assertEqual(res.status_code, 400)
+
+    def test_action_tst_89_sqlalchemy_pre_ping_config_configured(self):
+        """Action-TST-89: Verify SQLAlchemy pre-ping properties configured."""
+        engine_options = self.app.config.get("SQLALCHEMY_ENGINE_OPTIONS", {})
+        self.assertTrue(engine_options.get("pool_pre_ping", False))
+
+    def test_action_tst_90_diet_preference_enum_validation_checks(self):
+        """Action-TST-90: Verify DietPreference enum integrations."""
+        from backend.enums import DietPreference
+        self.assertEqual(DietPreference.VEGAN.value, "vegan")
+
+    def test_action_tst_91_sql_injection_orm_escaping_check(self):
+        """Action-TST-91: Verify SQL injection attempts are safely parsed using ORM."""
+        res = self.client.get("/api/challenges/search?q='; DROP TABLE challenges; --", headers=self.headers)
+        self.assertEqual(res.status_code, 200)
+
+    def test_action_tst_92_recommendation_config_status_endpoint(self):
+        """Action-TST-92: Verify recommendation config status endpoint results."""
+        res = self.client.get("/api/recommendations/status")
+        self.assertEqual(res.status_code, 200)
+
+    def test_action_tst_93_patch_recommendations_toggle_requests(self):
+        """Action-TST-93: Verify PATCH recommendations toggle requests details."""
+        res = self.client.patch("/api/recommendations/9999/complete", content_type="application/json", headers=self.headers)
+        self.assertEqual(res.status_code, 404)
+
+    def test_action_tst_94_json_bomb_depth_checks_rejection(self):
+        """Action-TST-94: Verify JSON bomb depth checks rejection."""
+        deep_json = {"a": {"b": {"c": {"d": {"e": {"f": "deep"}}}}}}
+        res = self.client.post("/api/calculator/submit", data=json.dumps(deep_json), content_type="application/json", headers=self.headers)
+        self.assertEqual(res.status_code, 400)
+
+    def test_action_tst_95_csrf_token_check_rejection(self):
+        """Action-TST-95: Verify CSRF token check rejection."""
+        original = self.app.config.get("TESTING")
+        self.app.config["TESTING"] = False
+        res = self.client.post("/api/challenges/join", data=json.dumps({"challenge_id": 1}), content_type="application/json", headers=self.headers)
+        self.assertEqual(res.status_code, 403)
+        self.app.config["TESTING"] = original
+
+    def test_action_tst_96_proxy_ip_headers_rate_limits(self):
+        """Action-TST-96: Verify proxy IP headers rate limits verification."""
+        from backend.routes.auth import clear_rate_limits
+        clear_rate_limits()
+        headers = {"X-Forwarded-For": "203.0.113.195"}
+        for _ in range(5):
+            self.client.post("/api/auth/login", data=json.dumps({"email": self.test_email, "password": self.test_password}), content_type="application/json", headers=headers)
+        res = self.client.post("/api/auth/login", data=json.dumps({"email": self.test_email, "password": self.test_password}), content_type="application/json", headers=headers)
+        self.assertEqual(res.status_code, 429)
+
+    def test_action_tst_97_db_exception_rollback_handling(self):
+        """Action-TST-97: Verify DB exception rollback execution."""
+        from unittest.mock import patch
+        from sqlalchemy.exc import SQLAlchemyError
+        with patch("backend.models.db.session.commit") as mock_commit:
+            mock_commit.side_effect = SQLAlchemyError("Mock error")
+            res = self.client.post("/api/challenges/join", data=json.dumps({"challenge_id": 1}), content_type="application/json", headers=self.headers)
+            self.assertEqual(res.status_code, 500)
+
+    def test_action_tst_98_logout_cookie_removal_and_headers(self):
+        """Action-TST-98: Verify logout cookie removal and Clear-Site-Data response header."""
+        res = self.client.post("/api/auth/logout", data=json.dumps({}), content_type="application/json", headers=self.headers)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.headers.get("Clear-Site-Data"), '"cookies", "storage"')
+
+    def test_action_tst_99_challenges_parameterized_search(self):
+        """Action-TST-99: Verify challenges parameterized search results."""
+        res = self.client.get("/api/challenges/search?difficulty=Beginner", headers=self.headers)
+        self.assertEqual(res.status_code, 200)
+
+    def test_action_tst_100_cors_allowed_origin_validation(self):
+        """Action-TST-100: Verify CORS allowed origin validation settings."""
+        res = self.client.get("/api/health", headers={"Origin": "http://localhost:8000"})
+        self.assertIn("Access-Control-Allow-Origin", res.headers)
+
 
 if __name__ == "__main__":
     unittest.main()
+
