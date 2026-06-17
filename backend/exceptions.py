@@ -19,3 +19,11 @@ class AuthenticationError(AppException):
 
     def __init__(self, message: str):
         super().__init__(message, status_code=401)
+
+
+class ResourceNotFound(AppException):
+    """Raised when a requested resource is not found in the database."""
+
+    def __init__(self, message: str):
+        super().__init__(message, status_code=404)
+

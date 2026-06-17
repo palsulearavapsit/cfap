@@ -31,6 +31,7 @@ from backend.constants import (
 from backend.enums import DietPreference, PlasticWasteLevel, RecyclingFrequency
 from backend.exceptions import ValidationError
 from backend.models import CarbonEntry, Recommendation, RecommendationCache, db
+from backend.repositories.carbon_repository import CarbonRepository
 from backend.routes.auth import login_required
 from backend.services.calculation_service import CalculationService
 from backend.services.gemini_service import generate_recommendations_gemini
@@ -72,7 +73,7 @@ def submit_calculator() -> Response:
             waste_plastic=validated_data["waste_plastic"],
             total_emissions=total_emissions,
         )
-        db.session.add(new_entry)
+        CarbonRepository.create(new_entry, commit=False)
 
         # Delete previous INCOMPLETE recommendations
         Recommendation.query.filter_by(user_id=user.id, is_completed=False).delete()

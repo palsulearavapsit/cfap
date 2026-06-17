@@ -238,6 +238,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- API HELPER ---
   const API = {
+    _cache: {},
+    clearCache() {
+      this._cache = {};
+    },
     async request(endpoint, options = {}) {
       const headers = {
         'Content-Type': 'application/json',
@@ -268,16 +272,23 @@ document.addEventListener('DOMContentLoaded', () => {
         throw err;
       }
     },
-    get(endpoint) {
-      return this.request(endpoint, { method: 'GET' });
+    async get(endpoint, bypassCache = false) {
+      if (!bypassCache && this._cache[endpoint]) {
+        return this._cache[endpoint];
+      }
+      const data = await this.request(endpoint, { method: 'GET' });
+      this._cache[endpoint] = data;
+      return data;
     },
     post(endpoint, body) {
+      this.clearCache();
       return this.request(endpoint, {
         method: 'POST',
         body: JSON.stringify(body),
       });
     },
     patch(endpoint, body) {
+      this.clearCache();
       return this.request(endpoint, {
         method: 'PATCH',
         body: JSON.stringify(body),
@@ -1295,6 +1306,7 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.userEmailDisplay.textContent = 'Eco Citizen';
     const navLevelBadge = document.getElementById('nav-level-badge-container');
     if (navLevelBadge) navLevelBadge.classList.add('hidden');
+    API.clearCache();
     navigateTo('auth');
   }
 

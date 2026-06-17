@@ -51,3 +51,31 @@ def register_sqlalchemy_event_logger(app: Any, db: Any) -> None:
             app.logger.debug(
                 f"[SQLAlchemy] Query: {statement[:200]} | Params: {str(parameters)[:100]}"
             )
+
+
+class SensitiveDataFilter(logging.Filter):
+    """Logging filter to mask password and auth token values in log messages (Action-SEC-158)."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        import re
+        if isinstance(record.msg, str):
+            record.msg = re.sub(
+                r'(password["\'\s:]+)[^\'",\s]+',
+                r'\1[MASKED]',
+                record.msg,
+                flags=re.IGNORECASE,
+            )
+            record.msg = re.sub(
+                r'(token["\'\s:]+)[^\'",\s]+',
+                r'\1[MASKED]',
+                record.msg,
+                flags=re.IGNORECASE,
+            )
+            record.msg = re.sub(
+                r'(bearer\s+)[^\'",\s]+',
+                r'\1[MASKED]',
+                record.msg,
+                flags=re.IGNORECASE,
+            )
+        return True
+

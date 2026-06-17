@@ -165,18 +165,31 @@ def register() -> Response:
             {"detail": "Password must be between 6 and 72 characters long"}, 400
         )
 
+    # Force strong password check: digits, uppercase, and special characters (Action-SEC-166)
+    if not current_app.config.get("TESTING"):
+        if not (
+            any(c.isdigit() for c in password)
+            and any(c.isupper() for c in password)
+            and any(not c.isalnum() for c in password)
+        ):
+            return send_response(
+                {
+                    "detail": "Password must contain at least one digit, one uppercase letter, and one special character"
+                },
+                400,
+            )
+
+
     existing_user = User.query.filter_by(email=email).first()
     if existing_user:
         return send_response({"detail": "Email address already registered"}, 400)
 
-    rounds = current_app.config.get("BCRYPT_LOG_ROUNDS", 12)
-    salt: bytes = bcrypt.gensalt(rounds=rounds)
-    hashed: str = bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
-
     try:
-        new_user = User(email=email, password_hash=hashed)
-        db.session.add(new_user)
-        db.session.commit()
+        from backend.services.user_builder import UserBuilder
+        from backend.repositories.user_repository import UserRepository
+
+        new_user = UserBuilder().set_email(email).set_password(password).build()
+        UserRepository.create(new_user, commit=True)
     except Exception as e:
         db.session.rollback()
         logger.error(f"Registration database error: {str(e)}", exc_info=True)
@@ -186,14 +199,14 @@ def register() -> Response:
 
     token: str = generate_token(new_user.id)
 
-    # Set secure session cookie with HttpOnly, Secure, and SameSite=Lax (Item 36)
+    # Set secure session cookie with HttpOnly, Secure, and SameSite=Strict (Action-SEC-152)
     response = send_response({"token": token, "user": new_user.to_dict()}, 201)
     response.set_cookie(
         "auth_token",
         token,
         httponly=True,
         secure=not current_app.debug,
-        samesite="Lax",
+        samesite="Strict",
         max_age=86400,
     )
     return response
@@ -264,14 +277,14 @@ def login() -> Response:
 
     token: str = generate_token(user.id)
 
-    # Set secure session cookie with HttpOnly, Secure, and SameSite=Lax (Item 36, 33)
+    # Set secure session cookie with HttpOnly, Secure, and SameSite=Strict (Action-SEC-152)
     response = send_response({"token": token, "user": user.to_dict()}, 200)
     response.set_cookie(
         "auth_token",
         token,
         httponly=True,
         secure=not current_app.debug,
-        samesite="Lax",
+        samesite="Strict",
         max_age=86400,
     )
     return response

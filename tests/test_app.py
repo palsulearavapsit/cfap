@@ -1386,6 +1386,129 @@ class EcoTrackTestCase(unittest.TestCase):
         )
         self.assertIn("Access-Control-Allow-Origin", res.headers)
 
+    def test_action_tst_151_repositories_and_builders(self):
+        """Action-TST-151: Verify UserRepository, CarbonRepository, and UserBuilder implementations."""
+        from backend.services.user_builder import UserBuilder
+        from backend.repositories.user_repository import UserRepository
+        from backend.repositories.carbon_repository import CarbonRepository
+        
+        # Test UserBuilder and UserRepository
+        email = "builder_test@ecotrack.ai"
+        builder = UserBuilder().set_email(email).set_password("SecurePass123!")
+        user = builder.build()
+        self.assertEqual(user.email, email)
+        self.assertIsNotNone(user.password_hash)
+        
+        UserRepository.create(user, commit=True)
+        retrieved_user = UserRepository.get_by_email(email)
+        self.assertIsNotNone(retrieved_user)
+        self.assertEqual(retrieved_user.id, user.id)
+        
+        retrieved_by_id = UserRepository.get_by_id(user.id)
+        self.assertEqual(retrieved_by_id.email, email)
+        
+        # Test CarbonRepository
+        entry = CarbonEntry(
+            user_id=user.id,
+            transportation_car=100.0,
+            total_emissions=17.1,
+        )
+        CarbonRepository.create(entry, commit=True)
+        
+        retrieved_entry = CarbonRepository.get_by_id(entry.id)
+        self.assertIsNotNone(retrieved_entry)
+        self.assertEqual(retrieved_entry.total_emissions, 17.1)
+        
+        latest_entry = CarbonRepository.get_latest_for_user(user.id)
+        self.assertEqual(latest_entry.id, entry.id)
+        
+        all_entries = CarbonRepository.get_all_for_user(user.id)
+        self.assertEqual(len(all_entries), 1)
+
+    def test_action_tst_152_sensitive_data_logging_filter(self):
+        """Action-TST-152: Verify SensitiveDataFilter masks passwords and tokens in logs."""
+        import logging
+        from backend.utils import SensitiveDataFilter
+        
+        log_filter = SensitiveDataFilter()
+        
+        # Mock a LogRecord
+        record1 = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname="test.py",
+            lineno=10,
+            msg="User login failed with password: securepass123",
+            args=(),
+            exc_info=None
+        )
+        self.assertTrue(log_filter.filter(record1))
+        self.assertIn("password: [MASKED]", record1.msg)
+        
+        record2 = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname="test.py",
+            lineno=10,
+            msg="Authorization token: secret_token_xyz",
+            args=(),
+            exc_info=None
+        )
+        self.assertTrue(log_filter.filter(record2))
+        self.assertIn("token: [MASKED]", record2.msg)
+        
+        record3 = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname="test.py",
+            lineno=10,
+            msg="Headers: Bearer my_secret_token",
+            args=(),
+            exc_info=None
+        )
+        self.assertTrue(log_filter.filter(record3))
+        self.assertIn("Bearer [MASKED]", record3.msg)
+
+    def test_action_tst_153_password_complexity_checks(self):
+        """Action-TST-153: Verify password complexity checks block weak passwords when not in testing mode."""
+        # Force testing configuration to false momentarily to run the check
+        original_testing = self.app.config.get("TESTING")
+        self.app.config["TESTING"] = False
+        
+        try:
+            # 1. Test missing uppercase letter
+            res = self.client.post(
+                "/api/auth/register",
+                data=json.dumps({"email": "weak1@ecotrack.ai", "password": "weakpass123!"}),
+                content_type="application/json",
+                headers={"X-Requested-With": "XMLHttpRequest"}
+            )
+            self.assertEqual(res.status_code, 400)
+            data = json.loads(res.data.decode("utf-8"))
+            self.assertIn("Password must contain at least one digit, one uppercase letter, and one special character", data["detail"])
+            
+            # 2. Test missing special character
+            res = self.client.post(
+                "/api/auth/register",
+                data=json.dumps({"email": "weak2@ecotrack.ai", "password": "WeakPassword123"}),
+                content_type="application/json",
+                headers={"X-Requested-With": "XMLHttpRequest"}
+            )
+            self.assertEqual(res.status_code, 400)
+            
+            # 3. Test missing digit
+            res = self.client.post(
+                "/api/auth/register",
+                data=json.dumps({"email": "weak3@ecotrack.ai", "password": "WeakPassword!"}),
+                content_type="application/json",
+                headers={"X-Requested-With": "XMLHttpRequest"}
+            )
+            self.assertEqual(res.status_code, 400)
+        finally:
+            self.app.config["TESTING"] = original_testing
+
+
+
 
 if __name__ == "__main__":
     unittest.main()

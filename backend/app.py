@@ -61,6 +61,12 @@ def create_app(config_class: Optional[Any] = None) -> Flask:
         file_handler.setLevel(logging.INFO)
         app.logger.addHandler(file_handler)
 
+    # Apply sensitive logs data filtering (Action-SEC-158)
+    from backend.utils import SensitiveDataFilter
+    sensitive_filter = SensitiveDataFilter()
+    app.logger.addFilter(sensitive_filter)
+    logging.getLogger("ecotrack").addFilter(sensitive_filter)
+
     app.logger.info("Initializing EcoTrack AI Web Application Factory...")
 
     # Configure CORS for specific local development origins only

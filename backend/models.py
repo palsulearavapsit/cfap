@@ -51,6 +51,11 @@ class CarbonEntry(Model):
 
     __tablename__ = "carbon_entries"
 
+    # Composite Index for user history lookup optimization (Action-EFF-153)
+    __table_args__ = (
+        db.Index("idx_carbon_entries_user_created", "user_id", "created_at"),
+    )
+
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     """Unique auto-incrementing identifier for the carbon footprint entry."""
 
