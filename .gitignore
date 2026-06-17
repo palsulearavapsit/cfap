@@ -29,3 +29,7 @@ db.sqlite3
 
 # Backups
 backups/
+
+# Logs
+*.log
+
