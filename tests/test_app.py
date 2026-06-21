@@ -1610,6 +1610,184 @@ class EcoTrackTestCase(unittest.TestCase):
         res = self.client.get("/api/health")
         self.assertEqual(res.headers.get("X-Frame-Options"), "DENY")
 
+    def test_action_acc_standards(self):
+        """Action-ACC-standards: Verify accessibility guidelines and HTML layout markers are present."""
+        import os
+
+        index_path = os.path.join(self.app.root_path, "..", "frontend", "index.html")
+        self.assertTrue(os.path.exists(index_path))
+
+        with open(index_path, "r", encoding="utf-8") as f:
+            html = f.read()
+
+        # 1. Skip link
+        self.assertIn('class="skip-link"', html)
+        self.assertIn('href="#main-content"', html)
+
+        # 2. Tablist role
+        self.assertIn('role="tablist"', html)
+        self.assertIn('role="tab"', html)
+
+        # 3. aria-controls attributes linking tab list buttons to view panel sections
+        self.assertIn('id="nav-dashboard"', html)
+        self.assertIn('aria-controls="view-dashboard"', html)
+        self.assertIn('id="nav-calculator"', html)
+        self.assertIn('aria-controls="view-calculator"', html)
+        self.assertIn('id="nav-challenges"', html)
+        self.assertIn('aria-controls="view-challenges"', html)
+
+        # 4. Tabpanel roles linking panels back to tab buttons via aria-labelledby
+        self.assertIn('id="view-dashboard"', html)
+        self.assertIn('role="tabpanel"', html)
+        self.assertIn('aria-labelledby="nav-dashboard"', html)
+
+        self.assertIn('id="view-calculator"', html)
+        self.assertIn('aria-labelledby="nav-calculator"', html)
+
+        self.assertIn('id="view-challenges"', html)
+        self.assertIn('aria-labelledby="nav-challenges"', html)
+
+        # 5. Semantic layout landmarks
+        self.assertIn("<main", html)
+        self.assertIn("</main>", html)
+        self.assertIn("<nav", html)
+        self.assertIn("</nav>", html)
+        self.assertIn("<section", html)
+        self.assertIn("</section>", html)
+        self.assertIn("<footer", html)
+        self.assertIn("</footer>", html)
+
+        # 6. Screen reader dialog tags for modals
+        self.assertIn('role="dialog"', html)
+        self.assertIn('aria-modal="true"', html)
+
+    def test_action_tst_154_db_relationships_cascade(self):
+        """Action-TST-154: Test database model relationships to verify validation when user records are deleted."""
+        # Create a new user
+        email = "cascade_test@ecotrack.ai"
+        user = User(email=email, password_hash="hashed_pw")
+        db.session.add(user)
+        db.session.commit()
+
+        # Create entries for this user
+        entry = CarbonEntry(user_id=user.id, total_emissions=150.0)
+        rec = Recommendation(
+            user_id=user.id,
+            title="Reduce heating",
+            description="Turn down the thermostat.",
+            difficulty="Beginner",
+            expected_reduction=15.0,
+            estimated_savings=5.0,
+        )
+        # Verify a challenge exists to associate with ChallengeProgress
+        challenge = Challenge.query.get(1)
+        self.assertIsNotNone(challenge)
+        from datetime import datetime, timedelta
+
+        prog = ChallengeProgress(
+            user_id=user.id,
+            challenge_id=challenge.id,
+            end_date=datetime.utcnow() + timedelta(days=7),
+            completion_status="in_progress",
+        )
+        db.session.add_all([entry, rec, prog])
+        db.session.commit()
+
+        # Verify they are added
+        self.assertEqual(CarbonEntry.query.filter_by(user_id=user.id).count(), 1)
+        self.assertEqual(Recommendation.query.filter_by(user_id=user.id).count(), 1)
+        self.assertEqual(ChallengeProgress.query.filter_by(user_id=user.id).count(), 1)
+
+        # Delete the user
+        db.session.delete(user)
+        db.session.commit()
+
+        # Verify cascade delete worked
+        self.assertEqual(CarbonEntry.query.filter_by(user_id=user.id).count(), 0)
+        self.assertEqual(Recommendation.query.filter_by(user_id=user.id).count(), 0)
+        self.assertEqual(ChallengeProgress.query.filter_by(user_id=user.id).count(), 0)
+
+    def test_action_tst_156_calculator_rejects_strings(self):
+        """Action-TST-156: Verify that calculator API rejects string values where numeric variables are expected."""
+        payload = {
+            "transportation_car": "one hundred",  # String instead of float
+            "food_preference": "vegan",
+            "waste_recycling": "always",
+            "waste_plastic": "low",
+        }
+        res = self.client.post(
+            "/api/calculator/submit",
+            data=json.dumps(payload),
+            content_type="application/json",
+            headers=self.headers,
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_action_tst_157_fallback_gemini_blank(self):
+        """Action-TST-157: Write mock unit tests asserting fallback suggestions run when Gemini API key is blank."""
+        original_key = self.app.config.get("GEMINI_API_KEY")
+        self.app.config["GEMINI_API_KEY"] = ""
+
+        try:
+            # Check recommendations status endpoint shows gemini not configured
+            res_status = self.client.get("/api/recommendations/status")
+            self.assertEqual(res_status.status_code, 200)
+            data_status = json.loads(res_status.data.decode("utf-8"))
+            self.assertFalse(data_status["gemini_configured"])
+
+            # Submit calculator
+            payload = {
+                "transportation_car": 600,  # High car use
+                "food_preference": "vegan",
+                "waste_recycling": "always",
+                "waste_plastic": "low",
+            }
+            res = self.client.post(
+                "/api/calculator/submit",
+                data=json.dumps(payload),
+                content_type="application/json",
+                headers=self.headers,
+            )
+            self.assertEqual(res.status_code, 201)
+
+            # Assert fallback recommendations were generated
+            res_recs = self.client.get("/api/recommendations/", headers=self.headers)
+            recs = json.loads(res_recs.data.decode("utf-8"))
+            self.assertGreater(len(recs), 0)
+            # Switch to Public Transit is a fallback recommendation for high car emissions
+            self.assertTrue(any("Public Transit" in r["title"] for r in recs))
+        finally:
+            self.app.config["GEMINI_API_KEY"] = original_key
+
+    def test_action_tst_160_rate_limiter_concurrency(self):
+        """Action-TST-160: Test rate limiter behaviors under concurrency conditions using concurrent threads."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        from flask import Flask
+
+        from backend.routes.auth import clear_rate_limits, rate_limit
+
+        app = Flask("test_rate_limit_concurrency")
+        app.config["TESTING"] = True
+
+        @app.route("/test-limit")
+        @rate_limit(limit=3, period=10)
+        def dummy_route():
+            return "ok", 200
+
+        client = app.test_client()
+        clear_rate_limits()
+
+        def make_request(i):
+            return client.get("/test-limit", headers={"X-Forwarded-For": "1.2.3.4"})
+
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            results = list(executor.map(make_request, range(5)))
+
+        status_codes = [r.status_code for r in results]
+        self.assertEqual(status_codes.count(200), 3)
+        self.assertEqual(status_codes.count(429), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
