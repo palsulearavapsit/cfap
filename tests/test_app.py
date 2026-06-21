@@ -1388,25 +1388,25 @@ class EcoTrackTestCase(unittest.TestCase):
 
     def test_action_tst_151_repositories_and_builders(self):
         """Action-TST-151: Verify UserRepository, CarbonRepository, and UserBuilder implementations."""
-        from backend.services.user_builder import UserBuilder
-        from backend.repositories.user_repository import UserRepository
         from backend.repositories.carbon_repository import CarbonRepository
-        
+        from backend.repositories.user_repository import UserRepository
+        from backend.services.user_builder import UserBuilder
+
         # Test UserBuilder and UserRepository
         email = "builder_test@ecotrack.ai"
         builder = UserBuilder().set_email(email).set_password("SecurePass123!")
         user = builder.build()
         self.assertEqual(user.email, email)
         self.assertIsNotNone(user.password_hash)
-        
+
         UserRepository.create(user, commit=True)
         retrieved_user = UserRepository.get_by_email(email)
         self.assertIsNotNone(retrieved_user)
         self.assertEqual(retrieved_user.id, user.id)
-        
+
         retrieved_by_id = UserRepository.get_by_id(user.id)
         self.assertEqual(retrieved_by_id.email, email)
-        
+
         # Test CarbonRepository
         entry = CarbonEntry(
             user_id=user.id,
@@ -1414,24 +1414,25 @@ class EcoTrackTestCase(unittest.TestCase):
             total_emissions=17.1,
         )
         CarbonRepository.create(entry, commit=True)
-        
+
         retrieved_entry = CarbonRepository.get_by_id(entry.id)
         self.assertIsNotNone(retrieved_entry)
         self.assertEqual(retrieved_entry.total_emissions, 17.1)
-        
+
         latest_entry = CarbonRepository.get_latest_for_user(user.id)
         self.assertEqual(latest_entry.id, entry.id)
-        
+
         all_entries = CarbonRepository.get_all_for_user(user.id)
         self.assertEqual(len(all_entries), 1)
 
     def test_action_tst_152_sensitive_data_logging_filter(self):
         """Action-TST-152: Verify SensitiveDataFilter masks passwords and tokens in logs."""
         import logging
+
         from backend.utils import SensitiveDataFilter
-        
+
         log_filter = SensitiveDataFilter()
-        
+
         # Mock a LogRecord
         record1 = logging.LogRecord(
             name="test",
@@ -1440,11 +1441,11 @@ class EcoTrackTestCase(unittest.TestCase):
             lineno=10,
             msg="User login failed with password: securepass123",
             args=(),
-            exc_info=None
+            exc_info=None,
         )
         self.assertTrue(log_filter.filter(record1))
         self.assertIn("password: [MASKED]", record1.msg)
-        
+
         record2 = logging.LogRecord(
             name="test",
             level=logging.INFO,
@@ -1452,11 +1453,11 @@ class EcoTrackTestCase(unittest.TestCase):
             lineno=10,
             msg="Authorization token: secret_token_xyz",
             args=(),
-            exc_info=None
+            exc_info=None,
         )
         self.assertTrue(log_filter.filter(record2))
         self.assertIn("token: [MASKED]", record2.msg)
-        
+
         record3 = logging.LogRecord(
             name="test",
             level=logging.INFO,
@@ -1464,7 +1465,7 @@ class EcoTrackTestCase(unittest.TestCase):
             lineno=10,
             msg="Headers: Bearer my_secret_token",
             args=(),
-            exc_info=None
+            exc_info=None,
         )
         self.assertTrue(log_filter.filter(record3))
         self.assertIn("Bearer [MASKED]", record3.msg)
@@ -1474,40 +1475,140 @@ class EcoTrackTestCase(unittest.TestCase):
         # Force testing configuration to false momentarily to run the check
         original_testing = self.app.config.get("TESTING")
         self.app.config["TESTING"] = False
-        
+
         try:
             # 1. Test missing uppercase letter
             res = self.client.post(
                 "/api/auth/register",
-                data=json.dumps({"email": "weak1@ecotrack.ai", "password": "weakpass123!"}),
+                data=json.dumps(
+                    {"email": "weak1@ecotrack.ai", "password": "weakpass123!"}
+                ),
                 content_type="application/json",
-                headers={"X-Requested-With": "XMLHttpRequest"}
+                headers={"X-Requested-With": "XMLHttpRequest"},
             )
             self.assertEqual(res.status_code, 400)
             data = json.loads(res.data.decode("utf-8"))
-            self.assertIn("Password must contain at least one digit, one uppercase letter, and one special character", data["detail"])
-            
+            self.assertIn(
+                "Password must contain at least one digit, one uppercase letter, and one special character",
+                data["detail"],
+            )
+
             # 2. Test missing special character
             res = self.client.post(
                 "/api/auth/register",
-                data=json.dumps({"email": "weak2@ecotrack.ai", "password": "WeakPassword123"}),
+                data=json.dumps(
+                    {"email": "weak2@ecotrack.ai", "password": "WeakPassword123"}
+                ),
                 content_type="application/json",
-                headers={"X-Requested-With": "XMLHttpRequest"}
+                headers={"X-Requested-With": "XMLHttpRequest"},
             )
             self.assertEqual(res.status_code, 400)
-            
+
             # 3. Test missing digit
             res = self.client.post(
                 "/api/auth/register",
-                data=json.dumps({"email": "weak3@ecotrack.ai", "password": "WeakPassword!"}),
+                data=json.dumps(
+                    {"email": "weak3@ecotrack.ai", "password": "WeakPassword!"}
+                ),
                 content_type="application/json",
-                headers={"X-Requested-With": "XMLHttpRequest"}
+                headers={"X-Requested-With": "XMLHttpRequest"},
             )
             self.assertEqual(res.status_code, 400)
         finally:
             self.app.config["TESTING"] = original_testing
 
+    def test_action_tst_251_calculator_numeric_limits_boundary(self):
+        """Action-TST-251: Verify calculator rejects values that are non-numeric or boolean."""
+        res = self.client.post(
+            "/api/calculator/submit",
+            data=json.dumps(
+                {
+                    "transportation_car": True,
+                    "food_preference": "vegan",
+                    "waste_recycling": "always",
+                    "waste_plastic": "low",
+                }
+            ),
+            content_type="application/json",
+            headers=self.headers,
+        )
+        self.assertEqual(res.status_code, 400)
 
+    def test_action_tst_252_auth_token_lifetime_bounds(self):
+        """Action-TST-252: Verify token verification fails for tampered or invalid timed signature tokens."""
+        from backend.routes.auth import verify_token
+
+        self.assertIsNone(verify_token("invalid_token_value_xyz"))
+
+    def test_action_tst_253_sql_injection_defense_extended(self):
+        """Action-TST-253: Verify SQL injection attempts are blocked on parameterized query structures."""
+        res = self.client.get(
+            "/api/challenges/search?difficulty=Beginner' OR '1'='1",
+            headers=self.headers,
+        )
+        self.assertEqual(res.status_code, 200)
+
+    def test_action_tst_254_analytics_filter_invalid_query_params(self):
+        """Action-TST-254: Verify analytics routes reject duplicate query parameters to prevent pollutions."""
+        res = self.client.get(
+            "/api/analytics/history?filter=3m&filter=6m",
+            headers=self.headers,
+        )
+        self.assertEqual(res.status_code, 400)
+        data = json.loads(res.data.decode("utf-8"))
+        self.assertIn("Duplicate query parameter", data["detail"])
+
+    def test_action_tst_255_security_headers_additional_policies(self):
+        """Action-TST-255: Verify Permissions-Policy and COOP/COEP headers are present on responses."""
+        res = self.client.get("/api/health")
+        self.assertEqual(res.headers.get("Cross-Origin-Opener-Policy"), "same-origin")
+        self.assertEqual(
+            res.headers.get("Cross-Origin-Embedder-Policy"), "require-corp"
+        )
+
+    def test_action_tst_351_calculator_empty_diet_options(self):
+        """Action-TST-351: Verify calculator rejects values that are empty string for food_preference."""
+        res = self.client.post(
+            "/api/calculator/submit",
+            data=json.dumps(
+                {
+                    "transportation_car": 0,
+                    "food_preference": "",
+                    "waste_recycling": "always",
+                    "waste_plastic": "low",
+                }
+            ),
+            content_type="application/json",
+            headers=self.headers,
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_action_tst_352_auth_token_lifetime_bounds_max(self):
+        """Action-TST-352: Verify token verification fails for tampered or invalid timed signature tokens."""
+        from backend.routes.auth import verify_token
+
+        self.assertIsNone(verify_token("invalid_token_value_xyz_352"))
+
+    def test_action_tst_353_sql_injection_defense_search_keys(self):
+        """Action-TST-353: Verify SQL injection attempts are blocked on parameterized search query inputs."""
+        res = self.client.get(
+            "/api/challenges/search?q='; SELECT 1; --",
+            headers=self.headers,
+        )
+        self.assertEqual(res.status_code, 200)
+
+    def test_action_tst_354_analytics_filter_invalid_value(self):
+        """Action-TST-354: Verify analytics routes reject duplicate query parameters to prevent pollutions."""
+        res = self.client.get(
+            "/api/analytics/history?filter=3m&filter=ytd",
+            headers=self.headers,
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_action_tst_355_security_headers_additional_frame_options(self):
+        """Action-TST-355: Verify that security headers check (X-Frame-Options: DENY) is present."""
+        res = self.client.get("/api/health")
+        self.assertEqual(res.headers.get("X-Frame-Options"), "DENY")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,7 @@
 from typing import Optional
+
 from backend.models import User, db
+
 
 class UserRepository:
     """Repository class for User database operations."""
@@ -18,4 +20,3 @@ class UserRepository:
         if commit:
             db.session.commit()
         return user
-

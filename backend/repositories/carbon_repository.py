@@ -1,5 +1,7 @@
 from typing import List, Optional
+
 from backend.models import CarbonEntry, db
+
 
 class CarbonRepository:
     """Repository class for CarbonEntry database operations."""
@@ -10,17 +12,27 @@ class CarbonRepository:
 
     @staticmethod
     def get_latest_for_user(user_id: int) -> Optional[CarbonEntry]:
-        return CarbonEntry.query.filter_by(user_id=user_id).order_by(CarbonEntry.created_at.desc()).first()
+        return (
+            CarbonEntry.query.filter_by(user_id=user_id)
+            .order_by(CarbonEntry.created_at.desc())
+            .first()
+        )
 
     @staticmethod
     def get_all_for_user(user_id: int) -> List[CarbonEntry]:
-        return CarbonEntry.query.filter_by(user_id=user_id).order_by(CarbonEntry.created_at.asc()).all()
+        return (
+            CarbonEntry.query.filter_by(user_id=user_id)
+            .order_by(CarbonEntry.created_at.asc())
+            .all()
+        )
+
     @staticmethod
     def create(entry: CarbonEntry, commit: bool = True) -> CarbonEntry:
         db.session.add(entry)
         if commit:
             db.session.commit()
         return entry
+
     @staticmethod
     def delete_all_for_user(user_id: int) -> None:
         CarbonEntry.query.filter_by(user_id=user_id).delete()

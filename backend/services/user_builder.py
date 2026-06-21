@@ -1,7 +1,10 @@
 from typing import Optional
+
 import bcrypt
 from flask import current_app
+
 from backend.models import User
+
 
 class UserBuilder:
     """Builder class to standardise User model creation logic."""
@@ -27,6 +30,8 @@ class UserBuilder:
         # Hash password using configured bcrypt rounds
         rounds = current_app.config.get("BCRYPT_LOG_ROUNDS", 12)
         salt: bytes = bcrypt.gensalt(rounds=rounds)
-        hashed: str = bcrypt.hashpw(self._password.encode("utf-8"), salt).decode("utf-8")
+        hashed: str = bcrypt.hashpw(self._password.encode("utf-8"), salt).decode(
+            "utf-8"
+        )
 
         return User(email=self._email, password_hash=hashed)

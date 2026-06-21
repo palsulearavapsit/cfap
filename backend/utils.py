@@ -58,24 +58,24 @@ class SensitiveDataFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         import re
+
         if isinstance(record.msg, str):
             record.msg = re.sub(
                 r'(password["\'\s:]+)[^\'",\s]+',
-                r'\1[MASKED]',
+                r"\1[MASKED]",
                 record.msg,
                 flags=re.IGNORECASE,
             )
             record.msg = re.sub(
                 r'(token["\'\s:]+)[^\'",\s]+',
-                r'\1[MASKED]',
+                r"\1[MASKED]",
                 record.msg,
                 flags=re.IGNORECASE,
             )
             record.msg = re.sub(
                 r'(bearer\s+)[^\'",\s]+',
-                r'\1[MASKED]',
+                r"\1[MASKED]",
                 record.msg,
                 flags=re.IGNORECASE,
             )
         return True
-

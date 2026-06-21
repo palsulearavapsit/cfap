@@ -63,6 +63,7 @@ def create_app(config_class: Optional[Any] = None) -> Flask:
 
     # Apply sensitive logs data filtering (Action-SEC-158)
     from backend.utils import SensitiveDataFilter
+
     sensitive_filter = SensitiveDataFilter()
     app.logger.addFilter(sensitive_filter)
     logging.getLogger("ecotrack").addFilter(sensitive_filter)

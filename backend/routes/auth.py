@@ -179,14 +179,13 @@ def register() -> Response:
                 400,
             )
 
-
     existing_user = User.query.filter_by(email=email).first()
     if existing_user:
         return send_response({"detail": "Email address already registered"}, 400)
 
     try:
-        from backend.services.user_builder import UserBuilder
         from backend.repositories.user_repository import UserRepository
+        from backend.services.user_builder import UserBuilder
 
         new_user = UserBuilder().set_email(email).set_password(password).build()
         UserRepository.create(new_user, commit=True)
